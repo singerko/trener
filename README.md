@@ -2,6 +2,8 @@
 
 Mobilná aplikácia na tvorbu tréningových plánov, vedený tréning, lokálnu históriu výkonov a hlasové ovládanie. Dáta sú uložené iba lokálne v zariadení.
 
+Projekt vznikol počas rehabilitácie po operácii kolena. Potreboval som aplikáciu, ktorá ma prevedie cvikmi s čo najmenším manuálnym zásahom, pretože pri cvičení som mal často plné ruky. Aplikácia preto vie tréning oznamovať hlasom a zároveň prijímať jednoduché hlasové príkazy, aby sa dala ovládať aj bez neustáleho klikania na displej.
+
 ## Hlavná obrazovka
 
 Na karte **Domov** je zoznam tréningov. Každý tréning má:
