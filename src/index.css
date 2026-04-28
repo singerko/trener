@@ -1,0 +1,146 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@font-face {
+  font-family: "Syne";
+  src: url("/fonts/syne_regular.ttf") format("truetype");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --bottom-nav-height: 76px;
+  --brand-singer: #1a1a18;
+  --brand-land: #4a8200;
+  --text-secondary: #64748b;
+
+  /* Premium Palette Overrides if needed */
+  background-color: #f8fafc;
+  /* Slate 50 */
+  color: #0f172a;
+  /* Slate 900 */
+}
+
+.dark {
+  --brand-singer: #f0f0ee;
+  --brand-land: #6bb800;
+  --text-secondary: #94a3b8;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100dvh;
+  background-color: #f8fafc;
+}
+
+#root {
+  width: 100%;
+  min-height: 100dvh;
+  isolation: isolate;
+  /* Mobile-first: Full width by default */
+}
+
+/* On wider screens, mimic a mobile app floating in center */
+@media (min-width: 640px) {
+  #root {
+    max-width: 480px;
+    margin: 0 auto;
+    background-color: white;
+  }
+
+  .dark #root {
+    background-color: #0f172a;
+    border-color: #1e293b;
+
+    min-height: 100dvh;
+    box-shadow: 0 0 50px -12px rgb(0 0 0 / 0.15);
+    border-left: 1px solid #f1f5f9;
+    border-right: 1px solid #f1f5f9;
+  }
+
+  body {
+    background-color: #e2e8f0;
+    /* Darker slate outside */
+    display: flex;
+    justify-content: center;
+  }
+}
+
+/* Safe Area Utilities */
+.pt-safe {
+  padding-top: var(--safe-area-top);
+}
+
+.pb-safe {
+  padding-bottom: var(--safe-area-bottom);
+}
+
+.mb-safe {
+  margin-bottom: var(--safe-area-bottom);
+}
+
+.bottom-safe {
+  bottom: var(--safe-area-bottom);
+}
+
+.safe-screen {
+  min-height: 100dvh;
+  padding-top: var(--safe-area-top);
+  padding-bottom: var(--safe-area-bottom);
+}
+
+.with-bottom-nav {
+  padding-bottom: calc(var(--bottom-nav-height) + var(--safe-area-bottom) + 1rem);
+}
+
+.app-bottom-nav {
+  bottom: 0;
+  min-height: calc(var(--bottom-nav-height) + var(--safe-area-bottom));
+  padding-bottom: calc(var(--safe-area-bottom) + 0.75rem);
+}
+
+.app-bottom-action {
+  bottom: 0;
+  padding-bottom: calc(var(--safe-area-bottom) + 1rem);
+}
+
+.live-bottom-controls {
+  padding-bottom: calc(var(--safe-area-bottom) + 1.5rem);
+}
+
+.singerland-logo {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.singerland-logo__singer,
+.singerland-logo__land {
+  font-family: "Syne", sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.singerland-logo__singer {
+  color: var(--brand-singer);
+  font-weight: 700;
+}
+
+.singerland-logo__land {
+  color: var(--brand-land);
+  font-weight: 400;
+}
+
+.singerland-logo__subtitle {
+  color: var(--text-secondary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  letter-spacing: 0.18em;
+  margin-top: 0.08rem;
+  text-transform: uppercase;
+}

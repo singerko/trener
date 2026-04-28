@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="splash_background">#0F172A</color>
+    <color name="brand_singer">#F0F0EE</color>
+    <color name="brand_land">#6BB800</color>
+    <color name="brand_subtitle">#94A3B8</color>
+</resources>

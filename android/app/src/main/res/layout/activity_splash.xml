@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/splash_background">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:baselineAligned="true"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/syne_extrabold"
+                android:includeFontPadding="false"
+                android:letterSpacing="-0.02"
+                android:text="Singer"
+                android:textColor="@color/brand_singer"
+                android:textFontWeight="700"
+                android:textSize="42sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/syne_regular"
+                android:includeFontPadding="false"
+                android:letterSpacing="-0.02"
+                android:text="Land"
+                android:textColor="@color/brand_land"
+                android:textFontWeight="400"
+                android:textSize="42sp" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:fontFamily="sans"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.18"
+            android:text="TRENER"
+            android:textAllCaps="true"
+            android:textColor="@color/brand_subtitle"
+            android:textSize="14sp" />
+    </LinearLayout>
+</FrameLayout>
