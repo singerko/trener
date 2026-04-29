@@ -6,6 +6,7 @@ declare global {
         TrenerBack?: {
             handle: () => boolean;
         };
+        TrenerConfirmWorkoutExit?: () => boolean;
     }
 }
 
@@ -26,6 +27,10 @@ export default function NativeBackHandler() {
     useEffect(() => {
         window.TrenerBack = {
             handle: () => {
+                if (location.pathname.startsWith('/trening/') && window.TrenerConfirmWorkoutExit) {
+                    return window.TrenerConfirmWorkoutExit();
+                }
+
                 const parentRoute = getParentRoute(location.pathname);
                 if (!parentRoute) return false;
 

@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../lib/store';
-import { Play, Pause, SkipForward, SkipBack, X, Ear, Volume2, VolumeX, Plus, SlidersHorizontal } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, X, Ear, Volume2, VolumeX, Plus, SlidersHorizontal, Mic, MicOff } from 'lucide-react';
 import type { WorkoutPlan, Cvik, WorkoutSession, ExerciseLog, InputMode, RepEvent, CvikType } from '../lib/types';
 import { playSoundEffect } from '../lib/audio';
 import { useVoiceControl, type VoiceCommand } from '../lib/voice';
@@ -70,7 +70,7 @@ export default function LiveWorkout() {
     const { id } = useParams();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const { plany, addSession, settings, toggleTTS } = useStore();
+    const { plany, addSession, settings, toggleTTS, toggleVoiceControl } = useStore();
     const isCustomRun = searchParams.get('custom') === '1';
     // --- STATE MANAGEMENT (Stav Aplikácie) ---
     // V Reacte nepoužívame globálne premenné ($var), ale "Hooks".
@@ -92,6 +92,7 @@ export default function LiveWorkout() {
     const [heldRepPhase, setHeldRepPhase] = useState<HeldRepPhase>('HOLD');
     const [completedHeldReps, setCompletedHeldReps] = useState(0);
     const [quickEditDraft, setQuickEditDraft] = useState<QuickEditDraft | null>(null);
+    const [showExitConfirm, setShowExitConfirm] = useState(false);
 
     // Session Log (Pole pre ukladanie výsledkov cvikov)
     const [sessionLog, setSessionLog] = useState<ExerciseLog[]>([]);
@@ -222,6 +223,20 @@ export default function LiveWorkout() {
         safeSpeak("Pauza", { interrupt: true });
     };
 
+    const requestWorkoutExit = useCallback(() => {
+        if (status === 'FINISHED') {
+            navigate('/');
+            return;
+        }
+
+        setShowExitConfirm(true);
+    }, [navigate, status]);
+
+    const confirmWorkoutExit = () => {
+        stopSpeech();
+        navigate('/');
+    };
+
     const handleFinishWorkout = (finalLog: ExerciseLog[]) => {
         const session: WorkoutSession = {
             id: crypto.randomUUID(),
@@ -233,7 +248,7 @@ export default function LiveWorkout() {
         };
         addSession(session);
         setStatus('FINISHED');
-        safeSpeak(getRandomWorkoutFinishMessage(), { interrupt: true });
+        safeSpeak(`Koniec tréningu. ${getRandomWorkoutFinishMessage()}`, { interrupt: true });
     };
 
     const handleRep = (source: 'BUTTON' | 'VOICE' = 'BUTTON') => {
@@ -413,7 +428,6 @@ export default function LiveWorkout() {
             resetHeldRepState();
         } else {
             // Last item finished
-            safeSpeak("Koniec série. Koniec tréningu.", { interrupt: true });
             handleFinishWorkout(newLog);
         }
     };
@@ -508,6 +522,25 @@ export default function LiveWorkout() {
     }, []);
     // Initialize Voice Hook
     const { isListening, lastTranscript, error: voiceError } = useVoiceControl(settings.voiceControlEnabled, voiceLang, voiceEngine, stableHandler);
+
+    useEffect(() => {
+        if (!settings.voiceControlEnabled) {
+            setShowDebug(false);
+        }
+    }, [settings.voiceControlEnabled]);
+
+    useEffect(() => {
+        window.TrenerConfirmWorkoutExit = () => {
+            requestWorkoutExit();
+            return true;
+        };
+
+        return () => {
+            if (window.TrenerConfirmWorkoutExit) {
+                delete window.TrenerConfirmWorkoutExit;
+            }
+        };
+    }, [requestWorkoutExit]);
 
     // --- KEEP AWAKE (Waze Mode) ---
     useEffect(() => {
@@ -754,16 +787,51 @@ export default function LiveWorkout() {
                         {settings.ttsEnabled ? <Volume2 size={24} /> : <VolumeX size={24} />}
                     </button>
 
+                    {/* Voice Control Toggle */}
+                    <button
+                        onClick={toggleVoiceControl}
+                        className={`p-2 rounded-full ${settings.voiceControlEnabled ? 'text-red-400 bg-red-400/10' : 'text-neutral-500 bg-neutral-800/70 hover:text-white'}`}
+                        aria-label={settings.voiceControlEnabled ? 'Vypnúť hlasové ovládanie' : 'Zapnúť hlasové ovládanie'}
+                        title={settings.voiceControlEnabled ? 'Vypnúť mikrofón' : 'Zapnúť mikrofón'}
+                    >
+                        {settings.voiceControlEnabled ? <Mic size={24} /> : <MicOff size={24} />}
+                    </button>
+
                     {settings.voiceControlEnabled && (
                         <button onClick={() => setShowDebug(!showDebug)} className={`p-2 rounded-full ${showDebug ? 'text-blue-400 bg-blue-400/10' : 'text-neutral-500 hover:text-white'}`}>
                             <Ear size={24} />
                         </button>
                     )}
-                    <button onClick={() => navigate('/')} className="p-2 text-neutral-500 hover:text-white">
+                    <button onClick={requestWorkoutExit} className="p-2 text-neutral-500 hover:text-white">
                         <X />
                     </button>
                 </div>
             </div>
+
+            {showExitConfirm && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-neutral-950 p-5 shadow-2xl">
+                        <h2 className="text-xl font-black text-white">Opustiť tréning?</h2>
+                        <p className="mt-3 text-sm leading-6 text-neutral-300">
+                            Prebiehajúci tréning sa ukončí bez uloženia do histórie a neskôr sa doň nebude dať vrátiť.
+                        </p>
+                        <div className="mt-5 grid grid-cols-2 gap-3">
+                            <button
+                                onClick={() => setShowExitConfirm(false)}
+                                className="rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm font-black text-white active:scale-95 transition-transform"
+                            >
+                                Zostať
+                            </button>
+                            <button
+                                onClick={confirmWorkoutExit}
+                                className="rounded-xl bg-red-500 px-4 py-3 text-sm font-black text-white active:scale-95 transition-transform"
+                            >
+                                Opustiť
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Voice Debug Overlay */}
             {showDebug && (
