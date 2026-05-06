@@ -31,6 +31,7 @@ Podporované typy cvikov:
 - **Počty** - napríklad 15 opakovaní.
 - **Čas** - cvik trvá nastavený počet sekúnd.
 - **Držané** - opakovaný cvik s výdržou a pauzou medzi opakovaniami, napríklad `12x drž 15s, pauza 5s`.
+- **Metronóm** - automaticky počítané opakovania so zvukom v nastavenom intervale, napríklad `12x každé 2s`.
 
 <img src="docs/screenshots/02-editor-treningu.png" width="260" alt="Editor tréningu">
 
@@ -48,7 +49,7 @@ Tento režim používa rovnaký formulár ako klasická editácia, ale zmeny pla
 
 ## Spustenie tréningu
 
-Po spustení tréningu aplikácia postupne zobrazuje cviky. Pri počítanom cviku môžeš pridávať opakovania tlačidlom **+1 REP** alebo hlasom, ak je zapnuté hlasové ovládanie.
+Po spustení tréningu aplikácia postupne zobrazuje cviky. Pri počítanom cviku môžeš pridávať opakovania tlačidlom **+1 REP** alebo hlasom, ak je zapnuté hlasové ovládanie. Pri metronóme sa po štarte opakovania počítajú automaticky a aplikácia prehrá zvuk v nastavenom intervale.
 
 <img src="docs/screenshots/05-live-pocitany-cvik.png" width="260" alt="Live tréning - počítaný cvik">
 
@@ -56,7 +57,7 @@ Pri držanom cviku aplikácia odpočítava výdrž, ukazuje aktuálne opakovanie
 
 <img src="docs/screenshots/06-live-drzany-cvik.png" width="260" alt="Live tréning - držaný cvik">
 
-Počas tréningu je hore dostupné tlačidlo rýchlej úpravy. Vieš ním zmeniť aktuálny cieľ, váhu, držanie, pauzu alebo znížiť počet kôl aktuálneho setu iba pre bežiaci tréning.
+Počas tréningu je hore dostupné tlačidlo rýchlej úpravy. Vieš ním zmeniť aktuálny cieľ, váhu, držanie, pauzu, interval metronómu alebo znížiť počet kôl aktuálneho setu iba pre bežiaci tréning.
 
 ## História
 

@@ -16,6 +16,9 @@ export const playTone = (freq: number = 440, type: 'sine' | 'square' | 'sawtooth
         osc.start();
         gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + duration);
         osc.stop(ctx.currentTime + duration);
+        osc.onended = () => {
+            ctx.close().catch(() => { });
+        };
     } catch (e) {
         console.error("Audio Playback Error", e);
     }

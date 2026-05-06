@@ -18,15 +18,31 @@ export const useVoiceControl = (enabled: boolean, lang: string = 'sk-SK', engine
     const recognitionRef = useRef<any>(null);
     const voskPartialHandleRef = useRef<any>(null);
     const voskResultHandleRef = useRef<any>(null);
+    const lastTranscriptUpdateRef = useRef(0);
     const isNative = Capacitor.isNativePlatform();
+    const [isPageVisible, setIsPageVisible] = useState(() => {
+        if (typeof document === 'undefined') return true;
+        return !document.hidden;
+    });
+    const shouldListen = enabled && isPageVisible;
+
+    useEffect(() => {
+        const handleVisibilityChange = () => setIsPageVisible(!document.hidden);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, []);
 
     // Command Parsing
     const processTranscript = useCallback((transcript: string, confidence: number = 1.0) => {
         const t = transcript.trim().toLowerCase();
 
         // Debug info
-        const debugText = confidence < 1.0 ? `${t} (${confidence.toFixed(2)})` : t;
-        setLastTranscript(debugText);
+        const now = Date.now();
+        if (now - lastTranscriptUpdateRef.current > 300) {
+            const debugText = confidence < 1.0 ? `${t} (${confidence.toFixed(2)})` : t;
+            setLastTranscript(debugText);
+            lastTranscriptUpdateRef.current = now;
+        }
 
         // Confidence Threshold (only applies if confidence was actually measured, i.e. final result)
         // Adjust threshold as needed. 0.6 is a safe start.
@@ -65,6 +81,7 @@ export const useVoiceControl = (enabled: boolean, lang: string = 'sk-SK', engine
         let isActive = true;
         let webRestartTimeout: any = null;
         let safetyTimeout: any = null;
+        let nativeRestartTimeout: any = null;
 
         const stopNative = async () => {
             try {
@@ -113,10 +130,10 @@ export const useVoiceControl = (enabled: boolean, lang: string = 'sk-SK', engine
                     } else if (data.status === 'stopped') {
                         setIsListening(false);
                         // If we are supposed to be active, RESTART!
-                        if (isActive && enabled) {
+                        if (isActive && shouldListen) {
                             // Wait a bit to avoid "Machine Gun" beeps if it dies instantly
-                            setTimeout(() => {
-                                if (isActive && enabled) startNative();
+                            nativeRestartTimeout = setTimeout(() => {
+                                if (isActive && shouldListen) startNative();
                             }, 1500);
                         }
                     }
@@ -342,7 +359,7 @@ export const useVoiceControl = (enabled: boolean, lang: string = 'sk-SK', engine
 
                 if (fatalError) return;
 
-                if (enabled) {
+                if (shouldListen) {
                     const duration = Date.now() - startTimeRef.current;
 
                     // CRITICAL FIX: If session was short (< 4s), it means improper termination or conflict.
@@ -356,7 +373,7 @@ export const useVoiceControl = (enabled: boolean, lang: string = 'sk-SK', engine
 
                     // Only restart if the session was healthy (> 4s)
                     webRestartTimeout = setTimeout(() => {
-                        if (isActive && enabled) {
+                        if (isActive && shouldListen) {
                             startWeb();
                         }
                     }, 500);
@@ -368,13 +385,13 @@ export const useVoiceControl = (enabled: boolean, lang: string = 'sk-SK', engine
                 recognition.start();
             } catch {
                 // If start fails immediately, retry later
-                if (enabled && isActive) {
+                if (shouldListen && isActive) {
                     webRestartTimeout = setTimeout(startWeb, 2000);
                 }
             }
         };
 
-        if (enabled) {
+        if (shouldListen) {
             // Determine which engine to use
             if (engine === 'VOSK') {
                 startVosk();
@@ -446,6 +463,7 @@ export const useVoiceControl = (enabled: boolean, lang: string = 'sk-SK', engine
                 }
                 if (webRestartTimeout) clearTimeout(webRestartTimeout);
                 if (safetyTimeout) clearTimeout(safetyTimeout);
+                if (nativeRestartTimeout) clearTimeout(nativeRestartTimeout);
             }
         }
 
@@ -476,9 +494,10 @@ export const useVoiceControl = (enabled: boolean, lang: string = 'sk-SK', engine
             }
             if (webRestartTimeout) clearTimeout(webRestartTimeout);
             if (safetyTimeout) clearTimeout(safetyTimeout);
+            if (nativeRestartTimeout) clearTimeout(nativeRestartTimeout);
             // nativeInterval cleanup removed
         };
-    }, [enabled, isNative, processTranscript, lang, engine]);
+    }, [shouldListen, isNative, processTranscript, lang, engine]);
 
     return { isListening, lastTranscript, error, isNative };
 };

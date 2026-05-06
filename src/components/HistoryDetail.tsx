@@ -77,6 +77,7 @@ export default function HistoryDetail() {
                             const cvik = cviky.find(c => c.id === log.exerciseId);
                             const prevLog = logs[index - 1];
                             const isHeldReps = log.typ === 'DRZANE_OPAKOVANIA' || log.holdSec !== undefined;
+                            const isMetronome = log.typ === 'METRONOM' || log.metronomeSec !== undefined;
 
                             // Detect if this is a start of a new visual block (new Set name or new Round)
                             // Or simpler: just show headers when they change.
@@ -121,6 +122,8 @@ export default function HistoryDetail() {
                                                     <Clock size={10} />
                                                     {isHeldReps
                                                         ? `${log.reps}x drž ${log.holdSec ?? 20}s · pauza ${log.restBetweenRepsSec ?? 0}s`
+                                                        : isMetronome
+                                                            ? `${log.reps}x · každé ${log.metronomeSec ?? 2}s`
                                                         : `${Math.round(log.durationMs / 1000)}s`}
                                                 </div>
                                             </div>
@@ -131,7 +134,7 @@ export default function HistoryDetail() {
                                                 {log.reps}
                                             </div>
                                             <div className="text-[10px] text-slate-400 font-bold uppercase">
-                                                {isHeldReps ? 'Držané' : (log.reps > 20 && log.durationMs > 20000 ? 'Sek?' : 'Opak.')}
+                                                {isHeldReps ? 'Držané' : isMetronome ? 'Metro.' : (log.reps > 20 && log.durationMs > 20000 ? 'Sek?' : 'Opak.')}
                                             </div>
                                             {log.vaha ? (
                                                 <div className="text-xs font-bold text-blue-500 mt-0.5">

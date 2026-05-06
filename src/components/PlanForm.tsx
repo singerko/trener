@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Plus, Save, Trash2, ArrowUp, ArrowDown, X, Clock, Dumbbell, Edit2, RotateCcw, ChevronLeft } from 'lucide-react';
+import { Plus, Save, Trash2, ArrowUp, ArrowDown, X, Clock, Dumbbell, Edit2, RotateCcw, ChevronLeft, Timer } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { Cvik, CvikType, SetBlock, SetItem, WorkoutPlan } from '../lib/types';
 
@@ -11,6 +11,7 @@ type ItemDraft = {
     holdSec: string;
     restBetweenRepsSec: string;
     restAfterSec: string;
+    metronomeSec: string;
 };
 
 interface PlanFormProps {
@@ -35,12 +36,14 @@ const createItemDraft = (cvikId = ''): ItemDraft => ({
     holdSec: '20',
     restBetweenRepsSec: '5',
     restAfterSec: '0',
+    metronomeSec: '2',
 });
 
 const typeMeta: Record<CvikType, { label: string; badge: string; unit: string }> = {
     POCTOVY: { label: 'Počty', badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', unit: 'x' },
     CASOVY: { label: 'Čas', badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', unit: 's' },
     DRZANE_OPAKOVANIA: { label: 'Držané', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300', unit: 'x' },
+    METRONOM: { label: 'Metronóm', badge: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300', unit: 'x' },
 };
 
 export default function PlanForm({
@@ -101,8 +104,32 @@ export default function PlanForm({
         const vaha = parseOptionalWeight(draft.vaha);
         if (vaha === null) return null;
 
+        if (draft.typ === 'METRONOM') {
+            const metronomeSec = parsePositiveInt(draft.metronomeSec, 'Interval metronómu');
+            if (metronomeSec === null) return null;
+            return {
+                typ: draft.typ,
+                ciel,
+                cvik_id: draft.cvikId,
+                vaha,
+                holdSec: undefined,
+                restBetweenRepsSec: undefined,
+                restAfterSec: undefined,
+                metronomeSec,
+            };
+        }
+
         if (draft.typ !== 'DRZANE_OPAKOVANIA') {
-            return { typ: draft.typ, ciel, cvik_id: draft.cvikId, vaha };
+            return {
+                typ: draft.typ,
+                ciel,
+                cvik_id: draft.cvikId,
+                vaha,
+                holdSec: undefined,
+                restBetweenRepsSec: undefined,
+                restAfterSec: undefined,
+                metronomeSec: undefined,
+            };
         }
 
         const holdSec = parsePositiveInt(draft.holdSec, 'Držať každé');
@@ -120,6 +147,7 @@ export default function PlanForm({
             holdSec,
             restBetweenRepsSec,
             restAfterSec,
+            metronomeSec: undefined,
         };
     };
 
@@ -130,6 +158,7 @@ export default function PlanForm({
         holdSec: draft.holdSec || '20',
         restBetweenRepsSec: draft.restBetweenRepsSec || '5',
         restAfterSec: draft.restAfterSec || '0',
+        metronomeSec: draft.metronomeSec || '2',
     });
 
     const addSet = (typ: 'NORMAL' | 'ROZCVICKA') => {
@@ -218,6 +247,7 @@ export default function PlanForm({
                 holdSec: item.holdSec === undefined ? '20' : String(item.holdSec),
                 restBetweenRepsSec: item.restBetweenRepsSec === undefined ? '5' : String(item.restBetweenRepsSec),
                 restAfterSec: item.restAfterSec === undefined ? '0' : String(item.restAfterSec),
+                metronomeSec: item.metronomeSec === undefined ? '2' : String(item.metronomeSec),
             },
         });
         setAddingToSetId(null);
@@ -248,12 +278,14 @@ export default function PlanForm({
         selected: boolean,
         onClick: () => void,
     ) => {
-        const Icon = typ === 'CASOVY' ? Clock : typ === 'DRZANE_OPAKOVANIA' ? RotateCcw : Dumbbell;
+        const Icon = typ === 'CASOVY' ? Clock : typ === 'DRZANE_OPAKOVANIA' ? RotateCcw : typ === 'METRONOM' ? Timer : Dumbbell;
         const activeClass = typ === 'CASOVY'
             ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300'
             : typ === 'DRZANE_OPAKOVANIA'
                 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300'
-                : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300';
+                : typ === 'METRONOM'
+                    ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300'
+                    : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300';
 
         return (
             <button
@@ -273,6 +305,7 @@ export default function PlanForm({
                     {renderTypeButton('POCTOVY', draft.typ === 'POCTOVY', () => onChange(updateDraftType(draft, 'POCTOVY')))}
                     {renderTypeButton('CASOVY', draft.typ === 'CASOVY', () => onChange(updateDraftType(draft, 'CASOVY')))}
                     {renderTypeButton('DRZANE_OPAKOVANIA', draft.typ === 'DRZANE_OPAKOVANIA', () => onChange(updateDraftType(draft, 'DRZANE_OPAKOVANIA')))}
+                    {renderTypeButton('METRONOM', draft.typ === 'METRONOM', () => onChange(updateDraftType(draft, 'METRONOM')))}
                 </div>
             </div>
 
@@ -329,6 +362,24 @@ export default function PlanForm({
                     </div>
                     <div className="text-xs font-semibold text-emerald-800 dark:text-emerald-200">
                         {draft.ciel || 0}x: drž {draft.holdSec || 0}s, pauza {draft.restBetweenRepsSec || 0}s
+                    </div>
+                </div>
+            )}
+
+            {draft.typ === 'METRONOM' && (
+                <div className="rounded-lg border border-violet-100 dark:border-violet-900/50 bg-violet-50/70 dark:bg-violet-950/20 p-3 space-y-3">
+                    <label className="block">
+                        <span className="text-[10px] font-bold uppercase text-violet-700 dark:text-violet-300">Každých</span>
+                        <input
+                            type="number"
+                            min="1"
+                            className="mt-1 w-full p-2 rounded-lg border border-violet-200 dark:border-violet-800 outline-none focus:border-violet-500 text-center font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-white"
+                            value={draft.metronomeSec}
+                            onChange={e => onChange({ ...draft, metronomeSec: e.target.value })}
+                        />
+                    </label>
+                    <div className="text-xs font-semibold text-violet-800 dark:text-violet-200">
+                        {draft.ciel || 0}x: zvuk každé {draft.metronomeSec || 0}s
                     </div>
                 </div>
             )}
@@ -473,6 +524,11 @@ export default function PlanForm({
                                                     {item.typ === 'DRZANE_OPAKOVANIA' ? (
                                                         <span className="text-xs font-bold text-emerald-600 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded">
                                                             drž {item.holdSec ?? 20}s · pauza {item.restBetweenRepsSec ?? 0}s
+                                                        </span>
+                                                    ) : null}
+                                                    {item.typ === 'METRONOM' ? (
+                                                        <span className="text-xs font-bold text-violet-600 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/30 px-1.5 py-0.5 rounded">
+                                                            každé {item.metronomeSec ?? 2}s
                                                         </span>
                                                     ) : null}
                                                     {item.vaha ? (

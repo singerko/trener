@@ -75,6 +75,7 @@ The app is part of the SingerLand ecosystem and uses the SingerLand brand on the
   - `POCTOVY`: manual or voice-counted repetitions.
   - `CASOVY`: one timed exercise duration.
   - `DRZANE_OPAKOVANIA`: counted held repetitions, for example 12 reps where each rep is held for 20 seconds with a 5 second pause between reps.
+  - `METRONOM`: automatically counted repetitions with an audio tick every `metronomeSec` seconds.
 
 ## Voice Behavior
 
@@ -85,7 +86,7 @@ The app is part of the SingerLand ecosystem and uses the SingerLand brand on the
   - Finish commands: `stop`, `hotovo`, `dalej`.
   - Pause command: `pauza`.
 - TTS should stop stale speech when skipping or changing current exercise.
-- Held repetitions are timer-led. Voice commands are used for start, pause, and next/skip, not for counting individual held reps.
+- Held repetitions and metronome repetitions are timer-led. Voice commands are used for start, pause, and next/skip, not for counting individual reps.
 
 ## Native Splash
 

@@ -27,6 +27,7 @@ interface QueueItem {
     holdSec?: number;
     restBetweenRepsSec?: number;
     restAfterSec?: number;
+    metronomeSec?: number;
 }
 
 type HeldRepPhase = 'HOLD' | 'REST_BETWEEN_REPS';
@@ -36,6 +37,7 @@ type QuickEditDraft = {
     vaha: string;
     holdSec: string;
     restBetweenRepsSec: string;
+    metronomeSec: string;
     setTotal: string;
 };
 
@@ -105,7 +107,7 @@ export default function LiveWorkout() {
     const sessionModeRef = useRef<InputMode | null>(null);
 
     // Beep / Sound Mock
-    const playSound = (type: 'BEEP' | 'START' | 'FINISH') => {
+    const playSound = (type: 'BEEP' | 'START' | 'FINISH' | 'TICK') => {
         playSoundEffect(type);
     };
 
@@ -302,6 +304,7 @@ export default function LiveWorkout() {
             vaha: current.vaha === undefined ? '' : String(current.vaha),
             holdSec: String(current.holdSec ?? 20),
             restBetweenRepsSec: String(current.restBetweenRepsSec ?? 0),
+            metronomeSec: String(current.metronomeSec ?? 2),
             setTotal: String(current.setTotal),
         });
     };
@@ -317,6 +320,7 @@ export default function LiveWorkout() {
             quickEditDraft.restBetweenRepsSec,
             current.restBetweenRepsSec ?? 0,
         );
+        const nextMetronomeSec = parseQuickPositiveInt(quickEditDraft.metronomeSec, current.metronomeSec ?? 2);
         const requestedSetTotal = parseQuickPositiveInt(quickEditDraft.setTotal, current.setTotal);
         const nextSetTotal = Math.min(Math.max(requestedSetTotal, current.setIndex), current.setTotal);
 
@@ -333,6 +337,7 @@ export default function LiveWorkout() {
                     restBetweenRepsSec: shouldUpdateExercise && item.type === 'DRZANE_OPAKOVANIA'
                         ? nextRestBetweenRepsSec
                         : item.restBetweenRepsSec,
+                    metronomeSec: shouldUpdateExercise && item.type === 'METRONOM' ? nextMetronomeSec : item.metronomeSec,
                     setTotal: shouldUpdateSetTotal ? nextSetTotal : item.setTotal,
                 };
             })
@@ -363,7 +368,7 @@ export default function LiveWorkout() {
             timestamp: startTime || Date.now(),
             durationMs: startTime ? Date.now() - startTime : 0,
             reps: overrides.reps ?? (
-                current.type === 'POCTOVY'
+                current.type === 'POCTOVY' || current.type === 'METRONOM'
                     ? progress
                     : current.type === 'DRZANE_OPAKOVANIA'
                         ? completedHeldReps
@@ -374,6 +379,7 @@ export default function LiveWorkout() {
             holdSec: current.holdSec,
             restBetweenRepsSec: current.restBetweenRepsSec,
             restAfterSec: current.restAfterSec,
+            metronomeSec: current.metronomeSec,
             completedHeldReps: current.type === 'DRZANE_OPAKOVANIA' ? (overrides.reps ?? completedHeldReps) : undefined,
             events: overrides.events ?? repEvents
         };
@@ -468,7 +474,7 @@ export default function LiveWorkout() {
         // 2. STOP Trigger (Mapped to NEXT)
         else if (cmd === 'NEXT') {
             if (status === 'RUNNING') {
-                if (currentExercise?.type === 'POCTOVY' || currentExercise?.type === 'DRZANE_OPAKOVANIA') {
+                if (currentExercise?.type === 'POCTOVY' || currentExercise?.type === 'DRZANE_OPAKOVANIA' || currentExercise?.type === 'METRONOM') {
                     // Start Lockout before switching state
                     voiceLockoutCounter.current += 1;
                     setVoiceLockout(true);
@@ -545,9 +551,9 @@ export default function LiveWorkout() {
     // --- KEEP AWAKE (Waze Mode) ---
     useEffect(() => {
         const manageScreen = async () => {
-            // If we are actively working out, keep screen ON (like Waze)
-            // This prevents the OS from killing the Voice Engine to save battery.
-            if (status === 'RUNNING' || status === 'IDLE') {
+            // Keep the screen awake only when it is needed for an active run
+            // or when IDLE is waiting for a voice command.
+            if (status === 'RUNNING' || (status === 'IDLE' && settings.voiceControlEnabled)) {
                 try {
                     await KeepAwake.keepAwake();
                 } catch (e) { console.warn("KeepAwake fail", e); }
@@ -565,7 +571,7 @@ export default function LiveWorkout() {
             };
             cleanup();
         };
-    }, [status]);
+    }, [settings.voiceControlEnabled, status]);
 
     // --- EFFECTS ---
 
@@ -605,6 +611,7 @@ export default function LiveWorkout() {
                             holdSec: item.holdSec,
                             restBetweenRepsSec: item.restBetweenRepsSec,
                             restAfterSec: item.restAfterSec,
+                            metronomeSec: item.metronomeSec,
                         });
                     }
                 });
@@ -631,6 +638,23 @@ export default function LiveWorkout() {
         if (status === 'RUNNING' && queue[currentIndex]) {
             const current = queue[currentIndex];
             if (current.type === 'POCTOVY') return;
+
+            if (current.type === 'METRONOM') {
+                const metronomeSec = Math.max(1, current.metronomeSec ?? 2);
+                timerRef.current = setInterval(() => {
+                    playSound('TICK');
+                    setProgress(prev => {
+                        const next = prev + 1;
+                        if (next >= current.target) {
+                            if (timerRef.current) clearInterval(timerRef.current);
+                            setTimeout(() => handleNext(undefined, { reps: next }), 0);
+                        }
+                        return next;
+                    });
+                }, metronomeSec * 1000);
+                return;
+            }
+
             timerRef.current = setInterval(() => {
                 setProgress(prev => prev + 1);
             }, 1000);
@@ -640,6 +664,8 @@ export default function LiveWorkout() {
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
         };
+        // handleNext intentionally uses the current render snapshot for the active exercise.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [status, currentIndex, queue]);
 
     // Auto-finish timed exercises and held-repetition phases
@@ -741,17 +767,22 @@ export default function LiveWorkout() {
 
     const isTimer = currentItem.type === 'CASOVY';
     const isHeldReps = currentItem.type === 'DRZANE_OPAKOVANIA';
+    const isMetronome = currentItem.type === 'METRONOM';
+    const isManualCounter = currentItem.type === 'POCTOVY';
     const heldPhaseTarget = heldRepPhase === 'HOLD'
         ? (currentItem.holdSec ?? 20)
         : (currentItem.restBetweenRepsSec ?? 0);
     const progressPercent = isTimer
         ? Math.min(100, (progress / currentItem.target) * 100)
+        : isMetronome
+            ? Math.min(100, (progress / currentItem.target) * 100)
         : isHeldReps && heldPhaseTarget > 0
             ? Math.min(100, (progress / heldPhaseTarget) * 100)
             : 0;
     const heldRemaining = Math.max(0, heldPhaseTarget - progress);
     const exerciseDescription = currentItem.cvik.popis.trim();
     const heldExerciseInstructions = `${currentItem.target}x držať ${currentItem.holdSec ?? 20}s, pauza ${currentItem.restBetweenRepsSec ?? 0}s`;
+    const metronomeInstructions = `${currentItem.target}x automaticky, zvuk každé ${currentItem.metronomeSec ?? 2}s`;
 
     return (
         <div className="safe-screen bg-neutral-900 text-white flex flex-col relative overflow-hidden">
@@ -982,6 +1013,19 @@ export default function LiveWorkout() {
                                     </div>
                                 )}
 
+                                {currentItem.type === 'METRONOM' && (
+                                    <label className="block rounded-xl border border-violet-400/20 bg-violet-400/10 p-3">
+                                        <span className="text-[10px] font-black uppercase text-violet-300">Každých</span>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            className="mt-1 w-full rounded-lg border border-violet-700 bg-neutral-900 p-3 text-center text-xl font-black text-white outline-none focus:border-violet-400"
+                                            value={quickEditDraft.metronomeSec}
+                                            onChange={(event) => setQuickEditDraft({ ...quickEditDraft, metronomeSec: event.target.value })}
+                                        />
+                                    </label>
+                                )}
+
                                 <label className="block rounded-xl border border-neutral-800 bg-neutral-900/70 p-3">
                                     <div className="mb-2 flex items-center justify-between gap-2">
                                         <span className="text-[10px] font-black uppercase text-neutral-500">Celkový počet kôl setu</span>
@@ -1024,6 +1068,12 @@ export default function LiveWorkout() {
                     </div>
                 )}
 
+                {isMetronome && (
+                    <div className="mb-4 px-4 py-2 rounded-full text-sm font-black uppercase tracking-wider bg-violet-400/10 text-violet-300 border border-violet-400/20">
+                        Metronóm · každé {currentItem.metronomeSec ?? 2}s
+                    </div>
+                )}
+
                 {/* Visual Target */}
                 <div className="text-8xl md:text-9xl font-mono font-bold mb-8 tabular-nums">
                     {isTimer ? (
@@ -1035,6 +1085,16 @@ export default function LiveWorkout() {
                         <span>
                             {heldRemaining}
                             <span className="text-2xl ml-2 text-neutral-500">s</span>
+                        </span>
+                    ) : isMetronome ? (
+                        <span>
+                            <span className={progress >= currentItem.target ? "text-green-500" : "text-white"}>
+                                {progress}
+                            </span>
+                            <span className="text-4xl text-neutral-600 mx-2">/</span>
+                            <span className="text-6xl text-neutral-500">
+                                {currentItem.target}
+                            </span>
                         </span>
                     ) : (
                         <span>
@@ -1050,7 +1110,7 @@ export default function LiveWorkout() {
                     )}
                 </div>
 
-                {isHeldReps ? (
+                {isHeldReps || isMetronome ? (
                     <div className="max-w-md space-y-2">
                         {exerciseDescription && (
                             <div className="text-neutral-300 text-lg">
@@ -1058,7 +1118,7 @@ export default function LiveWorkout() {
                             </div>
                         )}
                         <div className="text-neutral-400 text-base">
-                            {heldExerciseInstructions}
+                            {isMetronome ? metronomeInstructions : heldExerciseInstructions}
                         </div>
                     </div>
                 ) : (
@@ -1085,7 +1145,7 @@ export default function LiveWorkout() {
                         <SkipBack size={24} />
                     </button>
 
-                    {status === 'RUNNING' && !isTimer && !isHeldReps ? (
+                    {status === 'RUNNING' && isManualCounter ? (
                         <>
                             <button
                                 onClick={() => handleRep('BUTTON')}

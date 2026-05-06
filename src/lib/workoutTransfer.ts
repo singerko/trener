@@ -68,7 +68,7 @@ const parseItem = (value: unknown): SetItem => {
     if (!isRecord(value)) throw new Error('Neplatný export: položka setu má zlý formát');
 
     const typ = requireString(value.typ, 'typ cviku');
-    if (typ !== 'POCTOVY' && typ !== 'CASOVY' && typ !== 'DRZANE_OPAKOVANIA') {
+    if (typ !== 'POCTOVY' && typ !== 'CASOVY' && typ !== 'DRZANE_OPAKOVANIA' && typ !== 'METRONOM') {
         throw new Error(`Neplatný export: neznámy typ cviku ${typ}`);
     }
 
@@ -83,6 +83,7 @@ const parseItem = (value: unknown): SetItem => {
     if (isNumber(value.holdSec)) item.holdSec = value.holdSec;
     if (isNumber(value.restBetweenRepsSec)) item.restBetweenRepsSec = value.restBetweenRepsSec;
     if (isNumber(value.restAfterSec)) item.restAfterSec = value.restAfterSec;
+    if (isNumber(value.metronomeSec)) item.metronomeSec = value.metronomeSec;
 
     return item;
 };

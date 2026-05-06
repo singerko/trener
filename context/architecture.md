@@ -66,7 +66,8 @@ Routes are defined in `src/App.tsx`.
 - Persisted state uses `localStorage` through Zustand persist.
 - Historical workout entries should store snapshots of values that can later change in plans, especially weight.
 - Held repetitions use `DRZANE_OPAKOVANIA` with `ciel` as the rep count, `holdSec` as the hold duration, and `restBetweenRepsSec` as the pause between reps.
-- History logs can snapshot held-rep fields through `holdSec`, `restBetweenRepsSec`, `restAfterSec`, and `completedHeldReps`.
+- Metronome repetitions use `METRONOM` with `ciel` as the rep count and `metronomeSec` as the audio tick interval.
+- History logs can snapshot held-rep and metronome fields through `holdSec`, `restBetweenRepsSec`, `restAfterSec`, `completedHeldReps`, and `metronomeSec`.
 
 ## Voice And Audio
 
@@ -75,6 +76,7 @@ Routes are defined in `src/App.tsx`.
 - `src/lib/audio.ts`: local audio helpers.
 - Live workout is the primary consumer of voice/TTS behavior.
 - For `DRZANE_OPAKOVANIA`, `LiveWorkout` runs internal `HOLD` and `REST_BETWEEN_REPS` phases instead of relying on rep voice counting.
+- For `METRONOM`, `LiveWorkout` increments repetitions automatically on the configured interval instead of showing manual rep increment controls.
 
 ## Android Project
 
