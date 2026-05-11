@@ -104,7 +104,10 @@ export default function LiveWorkout() {
     // Používame to na veci, ktoré bežia na pozadí (časovače, zámky, ID relácie).
     const sessionStartRef = useRef<number>(Date.now());
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null); // Odkaz na setInterval (aby sme ho vedeli zrušiť)
+    const metronomeEndTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const metronomeNextTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const sessionModeRef = useRef<InputMode | null>(null);
+    const suppressNextIdleAnnouncementRef = useRef(false);
 
     // Beep / Sound Mock
     const playSound = (type: 'BEEP' | 'START' | 'FINISH' | 'TICK') => {
@@ -122,6 +125,21 @@ export default function LiveWorkout() {
     const getRepWord = (n: number) => {
         const words = ['', 'Raz', 'Dva', 'Tri', 'Štyri', 'Päť', 'Šesť', 'Sedem', 'Osem', 'Deväť', 'Desať', 'Jedenásť', 'Dvanásť'];
         return words[n] || `${n}`;
+    };
+
+    const getMetronomeCountdownText = (rep: number, target: number) => {
+        const remaining = target - rep + 1;
+        if (remaining === 3) return 'Ešte 3';
+        if (remaining === 2) return '2';
+        if (remaining === 1) return '1';
+        return null;
+    };
+
+    const clearMetronomeTimeouts = () => {
+        if (metronomeEndTimeoutRef.current) clearTimeout(metronomeEndTimeoutRef.current);
+        if (metronomeNextTimeoutRef.current) clearTimeout(metronomeNextTimeoutRef.current);
+        metronomeEndTimeoutRef.current = null;
+        metronomeNextTimeoutRef.current = null;
     };
 
     // --- VOICE LOCKOUT LOGIC (Logika Zámku) ---
@@ -350,9 +368,15 @@ export default function LiveWorkout() {
         setQuickEditDraft(null);
     };
 
-    const handleNext = (source?: 'BUTTON' | 'VOICE', overrides: { reps?: number; events?: RepEvent[] } = {}) => {
+    const handleNext = (
+        source?: 'BUTTON' | 'VOICE',
+        overrides: { reps?: number; events?: RepEvent[] } = {},
+        options: { stopCurrentSpeech?: boolean; announceMetronomeTransition?: boolean } = {},
+    ) => {
         recordInputMode(source);
-        stopSpeech();
+        if (options.stopCurrentSpeech ?? true) {
+            stopSpeech();
+        }
 
         // Log current result
         const current = queue[currentIndex];
@@ -397,7 +421,18 @@ export default function LiveWorkout() {
             const isRoundEnd = current.setIndex !== nextItem.setIndex;
             const isSetEnd = current.workoutSetId !== nextItem.workoutSetId;
 
-            if (isSetEnd) {
+            if (options.announceMetronomeTransition) {
+                const announcementParts = ['Koniec.'];
+                if (isSetEnd) {
+                    announcementParts.push('Koniec série.');
+                    announcementParts.push(`Začíname sériu ${nextItem.setNazov}.`);
+                } else if (isRoundEnd) {
+                    announcementParts.push(`Koniec série, ${getOrdinal(current.setIndex)} kolo.`);
+                }
+                announcementParts.push(`Nasleduje: ${nextItem.cvik.nazov}`);
+                suppressNextIdleAnnouncementRef.current = true;
+                safeSpeak(announcementParts.join(' '), { interrupt: true });
+            } else if (isSetEnd) {
                 safeSpeak("Koniec série", { interrupt: true });
             } else if (isRoundEnd) {
                 // Determine which round finished
@@ -641,17 +676,28 @@ export default function LiveWorkout() {
 
             if (current.type === 'METRONOM') {
                 const metronomeSec = Math.max(1, current.metronomeSec ?? 2);
-                timerRef.current = setInterval(() => {
+                const metronomeIntervalMs = metronomeSec * 1000;
+                const runMetronomeCue = () => {
                     playSound('TICK');
                     setProgress(prev => {
+                        if (prev >= current.target) return prev;
                         const next = prev + 1;
+                        const countdownText = getMetronomeCountdownText(next, current.target);
+                        if (countdownText) {
+                            safeSpeak(countdownText, { interrupt: true });
+                        }
                         if (next >= current.target) {
                             if (timerRef.current) clearInterval(timerRef.current);
-                            setTimeout(() => handleNext(undefined, { reps: next }), 0);
+                            metronomeEndTimeoutRef.current = setTimeout(() => {
+                                handleNext(undefined, { reps: next }, { announceMetronomeTransition: true });
+                            }, metronomeIntervalMs);
                         }
                         return next;
                     });
-                }, metronomeSec * 1000);
+                };
+
+                runMetronomeCue();
+                timerRef.current = setInterval(runMetronomeCue, metronomeIntervalMs);
                 return;
             }
 
@@ -660,9 +706,11 @@ export default function LiveWorkout() {
             }, 1000);
         } else {
             if (timerRef.current) clearInterval(timerRef.current);
+            clearMetronomeTimeouts();
         }
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
+            clearMetronomeTimeouts();
         };
         // handleNext intentionally uses the current render snapshot for the active exercise.
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -715,6 +763,11 @@ export default function LiveWorkout() {
     // Only runs when IDLE and currentIndex changes (or on mount)
     useEffect(() => {
         if (status === 'IDLE' && queue.length > 0 && plan) {
+            if (suppressNextIdleAnnouncementRef.current) {
+                suppressNextIdleAnnouncementRef.current = false;
+                return;
+            }
+
             const current = queue[currentIndex];
             // Initial Start (Index 0)
             if (currentIndex === 0 && progress === 0) {
