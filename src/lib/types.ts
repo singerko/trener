@@ -69,6 +69,13 @@ export interface ExerciseLog {
     events: RepEvent[];
 }
 
+export interface RehabEvent {
+    id: string;
+    scheduledTs: number;
+    description: string;
+    createdAt: number;
+}
+
 export interface RepEvent {
     value: number; // e.g. 1, 2, 3...
     ts: number;

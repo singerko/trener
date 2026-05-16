@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Cvik, WorkoutPlan, WorkoutSession, AppSettings } from './types';
+import type { Cvik, WorkoutPlan, WorkoutSession, AppSettings, RehabEvent } from './types';
 import { importWorkoutPackageIntoState } from './workoutTransfer';
 import type { ImportWorkoutResult, WorkoutExportPackage } from './workoutTransfer';
 
@@ -8,6 +8,7 @@ interface TrenerState {
     cviky: Cvik[];
     plany: WorkoutPlan[];
     history: WorkoutSession[];
+    rehabEvents: RehabEvent[];
 
     // Actions
     addCvik: (cvik: Cvik) => void;
@@ -21,6 +22,7 @@ interface TrenerState {
     importWorkoutPackage: (payload: WorkoutExportPackage) => ImportWorkoutResult;
 
     addSession: (session: WorkoutSession) => void;
+    addRehabEvent: (event: RehabEvent) => void;
     resetAll: () => void;
 
     // Settings
@@ -44,6 +46,7 @@ export const useStore = create<TrenerState>()(
             cviky: DEFAULT_CVIKY,
             plany: [],
             history: [],
+            rehabEvents: [],
             settings: { voiceControlEnabled: false, ttsEnabled: true, theme: 'SYSTEM' },
 
             addCvik: (cvik) => set((state) => ({ cviky: [...state.cviky, cvik] })),
@@ -83,8 +86,9 @@ export const useStore = create<TrenerState>()(
             },
 
             addSession: (session) => set((state) => ({ history: [...state.history, session] })),
+            addRehabEvent: (event) => set((state) => ({ rehabEvents: [...state.rehabEvents, event] })),
 
-            resetAll: () => set({ cviky: DEFAULT_CVIKY, plany: [], history: [] }),
+            resetAll: () => set({ cviky: DEFAULT_CVIKY, plany: [], history: [], rehabEvents: [] }),
 
             toggleVoiceControl: () => set((state) => ({
                 settings: { ...state.settings, voiceControlEnabled: !state.settings.voiceControlEnabled }
