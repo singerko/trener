@@ -116,7 +116,7 @@ export default function HistoryDetail() {
                                             </div>
                                             <div>
                                                 <div className="font-bold text-slate-800 dark:text-slate-100 leading-tight">
-                                                    {cvik?.nazov || 'Neznámy cvik'}
+                                                    {cvik?.nazov || log.exerciseName || 'Neznámy cvik'}
                                                 </div>
                                                 <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
                                                     <Clock size={10} />

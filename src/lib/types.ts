@@ -14,6 +14,8 @@ export interface Cvik {
 export interface SetItem {
     id: string;
     cvik_id: string;
+    cvikNazov?: string;
+    cvikPopis?: string;
     typ: CvikType; // Type is now determined per-usage
     ciel: number;  // Unified target value (reps or seconds)
     vaha?: number; // Weight in kg (optional)
@@ -36,6 +38,7 @@ export interface WorkoutPlan {
     nazov: string;
     sety: SetBlock[];
     createdAt: number;
+    skipHistory?: boolean;
 }
 
 
@@ -52,6 +55,7 @@ export interface WorkoutSession {
 
 export interface ExerciseLog {
     exerciseId: string;
+    exerciseName?: string;
     setId: string;
     setNazov?: string; // Snapshot of set name
     roundIndex?: number; // 1-based index of the round

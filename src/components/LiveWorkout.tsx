@@ -266,7 +266,9 @@ export default function LiveWorkout() {
             mode: sessionModeRef.current || 'BUTTON',
             log: finalLog
         };
-        addSession(session);
+        if (!plan?.skipHistory) {
+            addSession(session);
+        }
         setStatus('FINISHED');
         safeSpeak(`Koniec tréningu. ${getRandomWorkoutFinishMessage()}`, { interrupt: true });
     };
@@ -385,6 +387,7 @@ export default function LiveWorkout() {
 
         const logItem: ExerciseLog = {
             exerciseId: current.cvik.id,
+            exerciseName: current.cvik.nazov,
             setId: current.workoutSetId,
             setNazov: current.setNazov,
             roundIndex: current.setIndex,
@@ -421,7 +424,9 @@ export default function LiveWorkout() {
             const isRoundEnd = current.setIndex !== nextItem.setIndex;
             const isSetEnd = current.workoutSetId !== nextItem.workoutSetId;
 
-            if (options.announceMetronomeTransition) {
+            if (plan?.skipHistory) {
+                // Quick exercises should move between rounds without workout/exercise announcements.
+            } else if (options.announceMetronomeTransition) {
                 const announcementParts = ['Koniec.'];
                 if (isSetEnd) {
                     announcementParts.push('Koniec série.');
@@ -630,7 +635,11 @@ export default function LiveWorkout() {
         p.sety.forEach(set => {
             for (let i = 0; i < set.opakovania; i++) {
                 set.polozky.forEach(item => {
-                    const cvik = useStore.getState().cviky.find(c => c.id === item.cvik_id);
+                    const cvik = useStore.getState().cviky.find(c => c.id === item.cvik_id) ?? (
+                        item.cvikNazov
+                            ? { id: item.cvik_id, nazov: item.cvikNazov, popis: item.cvikPopis ?? '' }
+                            : null
+                    );
                     if (cvik) {
                         q.push({
                             id: crypto.randomUUID(),
@@ -763,6 +772,10 @@ export default function LiveWorkout() {
     // Only runs when IDLE and currentIndex changes (or on mount)
     useEffect(() => {
         if (status === 'IDLE' && queue.length > 0 && plan) {
+            if (plan.skipHistory) {
+                return;
+            }
+
             if (suppressNextIdleAnnouncementRef.current) {
                 suppressNextIdleAnnouncementRef.current = false;
                 return;

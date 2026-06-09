@@ -3,11 +3,12 @@ import { useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../lib/store';
-import { ArrowDown, ArrowUp, Download, Edit2, MoreVertical, Plus, Play, Mic, MicOff, SlidersHorizontal, Upload, Volume2, VolumeX } from 'lucide-react';
+import { ArrowDown, ArrowUp, Clock, Download, Dumbbell, Edit2, MoreVertical, Plus, Play, Mic, MicOff, RotateCcw, SlidersHorizontal, Timer, Upload, Volume2, VolumeX } from 'lucide-react';
 import { parseWorkoutExportPackage } from '../lib/workoutTransfer';
-import type { WorkoutPlan } from '../lib/types';
+import type { CvikType, WorkoutPlan } from '../lib/types';
 import { shareWorkoutPlan } from '../lib/workoutShare';
 import SingerLandLogo from './SingerLandLogo';
+import { saveRuntimeWorkoutPlan } from '../lib/workoutRuntime';
 
 export default function Dashboard() {
     const { plany, cviky, settings, toggleVoiceControl, toggleTTS, importWorkoutPackage, movePlan } = useStore();
@@ -15,6 +16,13 @@ export default function Dashboard() {
     const importInputRef = useRef<HTMLInputElement>(null);
     const [transferMessage, setTransferMessage] = useState('');
     const [openMenuPlanId, setOpenMenuPlanId] = useState<string | null>(null);
+    const [showQuickExercise, setShowQuickExercise] = useState(false);
+    const [quickType, setQuickType] = useState<CvikType>('DRZANE_OPAKOVANIA');
+    const [quickSets, setQuickSets] = useState('4');
+    const [quickTarget, setQuickTarget] = useState('1');
+    const [quickHoldSec, setQuickHoldSec] = useState('20');
+    const [quickRestBetweenRepsSec, setQuickRestBetweenRepsSec] = useState('0');
+    const [quickMetronomeSec, setQuickMetronomeSec] = useState('2');
 
     const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -53,6 +61,90 @@ export default function Dashboard() {
     const handleMenuNavigate = (path: string) => {
         setOpenMenuPlanId(null);
         navigate(path);
+    };
+
+    const parseQuickPositiveInt = (value: string, fieldName: string) => {
+        const parsed = Number.parseInt(value, 10);
+        if (!Number.isFinite(parsed) || parsed < 1) {
+            alert(`${fieldName} musí byť celé číslo väčšie ako 0`);
+            return null;
+        }
+        return parsed;
+    };
+
+    const updateQuickType = (type: CvikType) => {
+        setQuickType(type);
+        if (type === 'CASOVY') {
+            setQuickTarget((value) => value || '30');
+        } else if (type === 'DRZANE_OPAKOVANIA') {
+            setQuickTarget((value) => value || '1');
+        } else {
+            setQuickTarget((value) => value || '10');
+        }
+    };
+
+    const getQuickTypeLabel = (type: CvikType) => {
+        if (type === 'CASOVY') return 'Čas';
+        if (type === 'DRZANE_OPAKOVANIA') return 'Držané';
+        if (type === 'METRONOM') return 'Metronóm';
+        return 'Počty';
+    };
+
+    const handleQuickExerciseStart = () => {
+        const setCount = parseQuickPositiveInt(quickSets, 'Počet sérií');
+        if (setCount === null) return;
+        const target = parseQuickPositiveInt(quickTarget, quickType === 'CASOVY' ? 'Trvanie' : 'Počet opakovaní');
+        if (target === null) return;
+
+        const holdSec = quickType === 'DRZANE_OPAKOVANIA'
+            ? parseQuickPositiveInt(quickHoldSec, 'Držať')
+            : undefined;
+        if (holdSec === null) return;
+        let restBetweenRepsSec: number | undefined;
+        if (quickType === 'DRZANE_OPAKOVANIA') {
+            const parsedRest = Number.parseInt(quickRestBetweenRepsSec, 10);
+            if (!Number.isFinite(parsedRest) || parsedRest < 0) {
+                alert('Pauza musí byť celé číslo aspoň 0');
+                return;
+            }
+            restBetweenRepsSec = parsedRest;
+        }
+        const metronomeSec = quickType === 'METRONOM'
+            ? parseQuickPositiveInt(quickMetronomeSec, 'Interval metronómu')
+            : undefined;
+        if (metronomeSec === null) return;
+
+        const typeLabel = getQuickTypeLabel(quickType);
+        const planId = `quick-exercise-${crypto.randomUUID()}`;
+        const setId = crypto.randomUUID();
+        const itemId = crypto.randomUUID();
+        const plan: WorkoutPlan = {
+            id: planId,
+            nazov: `Rýchle cvičenie - ${typeLabel}`,
+            createdAt: Date.now(),
+            skipHistory: true,
+            sety: [{
+                id: setId,
+                nazov: 'Rýchle cvičenie',
+                typ: 'NORMAL',
+                opakovania: setCount,
+                polozky: [{
+                    id: itemId,
+                    cvik_id: `quick-${quickType.toLowerCase()}`,
+                    cvikNazov: `Rýchle cvičenie - ${typeLabel}`,
+                    cvikPopis: '',
+                    typ: quickType,
+                    ciel: target,
+                    holdSec,
+                    restBetweenRepsSec,
+                    restAfterSec: quickType === 'DRZANE_OPAKOVANIA' ? 0 : undefined,
+                    metronomeSec,
+                }],
+            }],
+        };
+
+        saveRuntimeWorkoutPlan(plan);
+        navigate(`/trening/${plan.id}?custom=1`);
     };
 
     return (
@@ -103,6 +195,121 @@ export default function Dashboard() {
                     {transferMessage}
                 </div>
             )}
+
+            <div className="mt-4 rounded-xl border border-amber-100 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 p-4">
+                <div className="flex items-center justify-between gap-3">
+                    <div>
+                        <h2 className="font-black text-slate-900 dark:text-white">Rýchle cvičenie</h2>
+                        <div className="text-sm text-amber-800 dark:text-amber-300">
+                            Jednorazovo bez tvorby tréningu
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setShowQuickExercise(value => !value)}
+                        className="rounded-lg bg-amber-400 px-3 py-2 text-sm font-black text-slate-900 active:scale-95 transition-transform"
+                    >
+                        Nastaviť
+                    </button>
+                </div>
+
+                {showQuickExercise ? (
+                    <div className="mt-4 space-y-3">
+                        <div className="grid grid-cols-4 gap-1 rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900 p-1">
+                            {([
+                                ['POCTOVY', Dumbbell],
+                                ['CASOVY', Clock],
+                                ['DRZANE_OPAKOVANIA', RotateCcw],
+                                ['METRONOM', Timer],
+                            ] as const).map(([type, Icon]) => (
+                                <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => updateQuickType(type)}
+                                    className={`flex items-center justify-center rounded px-1 py-2 text-[10px] font-black transition-colors ${quickType === type
+                                        ? 'bg-amber-400 text-slate-950'
+                                        : 'text-slate-400 dark:text-slate-500'
+                                        }`}
+                                >
+                                    <Icon size={14} />
+                                    <span className="ml-1 hidden min-[380px]:inline">{getQuickTypeLabel(type)}</span>
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                            <label>
+                                <span className="text-[10px] font-black uppercase text-amber-700 dark:text-amber-300">Série</span>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={quickSets}
+                                    onChange={event => setQuickSets(event.target.value)}
+                                    className="mt-1 w-full rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900 p-3 text-center text-lg font-black text-slate-800 dark:text-white outline-none focus:border-amber-500"
+                                />
+                            </label>
+                            <label>
+                                <span className="text-[10px] font-black uppercase text-amber-700 dark:text-amber-300">
+                                    {quickType === 'CASOVY' ? 'Trvanie' : 'Opakovania'}
+                                </span>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={quickTarget}
+                                    onChange={event => setQuickTarget(event.target.value)}
+                                    className="mt-1 w-full rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900 p-3 text-center text-lg font-black text-slate-800 dark:text-white outline-none focus:border-amber-500"
+                                />
+                            </label>
+                        </div>
+
+                        {quickType === 'DRZANE_OPAKOVANIA' ? (
+                            <div className="grid grid-cols-2 gap-2 rounded-lg border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50 dark:bg-emerald-950/20 p-2">
+                                <label>
+                                    <span className="text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-300">Držať</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={quickHoldSec}
+                                        onChange={event => setQuickHoldSec(event.target.value)}
+                                        className="mt-1 w-full rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 p-3 text-center text-lg font-black text-slate-800 dark:text-white outline-none focus:border-emerald-500"
+                                    />
+                                </label>
+                                <label>
+                                    <span className="text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-300">Pauza</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={quickRestBetweenRepsSec}
+                                        onChange={event => setQuickRestBetweenRepsSec(event.target.value)}
+                                        className="mt-1 w-full rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 p-3 text-center text-lg font-black text-slate-800 dark:text-white outline-none focus:border-emerald-500"
+                                    />
+                                </label>
+                            </div>
+                        ) : null}
+
+                        {quickType === 'METRONOM' ? (
+                            <label className="block rounded-lg border border-violet-200 dark:border-violet-900/60 bg-violet-50 dark:bg-violet-950/20 p-2">
+                                <span className="text-[10px] font-black uppercase text-violet-700 dark:text-violet-300">Každých</span>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={quickMetronomeSec}
+                                    onChange={event => setQuickMetronomeSec(event.target.value)}
+                                    className="mt-1 w-full rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-slate-900 p-3 text-center text-lg font-black text-slate-800 dark:text-white outline-none focus:border-violet-500"
+                                />
+                            </label>
+                        ) : null}
+
+                        <button
+                            type="button"
+                            onClick={handleQuickExerciseStart}
+                            className="w-full rounded-xl bg-green-600 py-3 font-black text-white shadow-sm active:scale-[0.99] transition-transform flex items-center justify-center gap-2"
+                        >
+                            <Play size={18} fill="currentColor" /> Spustiť
+                        </button>
+                    </div>
+                ) : null}
+            </div>
 
             <div className="grid gap-3 mt-4">
                 {plany.length === 0 && (
