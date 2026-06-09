@@ -24,6 +24,8 @@ Routes are defined in `src/App.tsx`.
 - `/cviky`: `ExerciseLibrary`.
 - `/historia`: `History`.
 - `/historia/:id`: `HistoryDetail`.
+- `/merania`: `Measurements`.
+- `/merania/:id`: `Measurements` detail for one measurement definition.
 - `/progres`: `ProgressView`.
 - `/help`: `Help`, currently also the settings/info screen.
 - `/start/:id`: `WorkoutStartEditor`, one-off workout parameter editor before live start.
@@ -52,6 +54,9 @@ Routes are defined in `src/App.tsx`.
 - `src/components/PlanForm.tsx`
   - Shared workout-plan form used by both `PlanEditor` and `WorkoutStartEditor`.
   - Owns set/exercise editing UI, item validation, held-rep fields, weights, ordering, and add/remove controls.
+- `src/components/Measurements.tsx`
+  - Lists measurement definitions, edits their fields and units, records timestamped values, and renders SVG trend charts.
+  - Note colors are scoped to one measurement definition and are resolved dynamically for historical chart points.
 - `src/components/NativeBackHandler.tsx`
   - Defines app route hierarchy for Android system back navigation.
   - Root route lets Android move the app to the background.
@@ -65,6 +70,8 @@ Routes are defined in `src/App.tsx`.
 - `src/lib/workoutTransfer.ts`: versioned workout export/import package validation, serialization, and merge logic.
 - Persisted state uses `localStorage` through Zustand persist.
 - Historical workout entries should store snapshots of values that can later change in plans, especially weight.
+- Measurement data is split into definitions and entries. `MeasurementDefinition` stores name, unit, fields, and note presets. `MeasurementEntry` stores timestamp, field values, and note text.
+- Measurement note colors are scoped per definition, so the same note text can have different colors for hmotnosť, tlak, or opuch. Chart colors are resolved from the current definition to allow historical recoloring.
 - Held repetitions use `DRZANE_OPAKOVANIA` with `ciel` as the rep count, `holdSec` as the hold duration, and `restBetweenRepsSec` as the pause between reps.
 - Metronome repetitions use `METRONOM` with `ciel` as the rep count and `metronomeSec` as the audio tick interval.
 - History logs can snapshot held-rep and metronome fields through `holdSec`, `restBetweenRepsSec`, `restAfterSec`, `completedHeldReps`, and `metronomeSec`.

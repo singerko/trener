@@ -80,6 +80,39 @@ export interface RehabEvent {
     createdAt: number;
 }
 
+export interface MeasurementField {
+    id: string;
+    name: string;
+    archivedAt?: number;
+}
+
+export interface MeasurementNotePreset {
+    id: string;
+    text: string;
+    color: string;
+}
+
+export interface MeasurementDefinition {
+    id: string;
+    name: string;
+    unit: string;
+    fields: MeasurementField[];
+    notePresets: MeasurementNotePreset[];
+    createdAt: number;
+    updatedAt: number;
+    archivedAt?: number;
+}
+
+export interface MeasurementEntry {
+    id: string;
+    definitionId: string;
+    measuredAt: number;
+    values: Record<string, number>;
+    note?: string;
+    createdAt: number;
+    updatedAt: number;
+}
+
 export interface RepEvent {
     value: number; // e.g. 1, 2, 3...
     ts: number;

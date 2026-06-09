@@ -34,7 +34,13 @@ Aplikácia musí byť postavená na nasledujúcich technológiách:
 *   **Tréningová Relácia (WorkoutSession):** Záznam o celom odcvičenom tréningu.
 *   **Záznam Cviku (ExerciseLog):** Detail vykonania jedného cviku v sérii. Obsahuje čas, počet dosiahnutých opakovaní a zoznam udalostí (kedy bolo započítané opakovanie).
 
-### 3.3 Nastavenia (Settings)
+### 3.3 Merania
+*   **Definícia merania (MeasurementDefinition):** Konfigurácia sledovanej hodnoty. Obsahuje názov, jednotku, merané položky a poznámkové presety s farbou.
+*   **Položka merania (MeasurementField):** Jedna časť merania, napríklad `pod kolenom`, `horný tlak` alebo `hmotnosť`.
+*   **Poznámkový preset (MeasurementNotePreset):** Text poznámky a jej farba v rámci jednej definície merania. Rovnaký text poznámky môže mať v rôznych meraniach inú farbu.
+*   **Záznam merania (MeasurementEntry):** Konkrétny záznam hodnôt v čase. Ukladá hodnoty podľa ID položiek a text poznámky. Farba sa vyhodnocuje aktuálne z definície merania, aby zmena farby spätne prefarbila historické body.
+
+### 3.4 Nastavenia (Settings)
 *   **Téma (Theme):** Voľba vzhľadu aplikácie: `LIGHT`, `DARK` alebo `SYSTEM` (podľa OS).
 *   **Hlasové ovládanie:** Povolenie/zákaz počúvania príkazov.
 *   **TTS:** Povolenie/zákaz hlasovej odozvy.
@@ -66,11 +72,22 @@ Toto je jadro aplikácie. Režim "Live Workout" musí zabezpečiť:
 ### 4.4 História a Progres
 - Zobrazenie kalendára alebo zoznamu minulých tréningov.
 - Detailný pohľad na tréning (trvanie, odcvičené cviky, počty opakovaní, **použitá váha**).
+- Zobrazenie rehabilitácií a meraní v kalendári histórie.
 - **Sledovanie progresu:**
     - Možnosť zobrazenia histórie výkonov pre konkrétny cvik (graf alebo zoznam).
     - Vizualizácia zlepšenia (nárast váhy, opakovaní alebo času).
 
-### 4.5 Rozšírené možnosti tréningu
+### 4.5 Merania
+- Používateľ musí vedieť vytvoriť viac konfigurácií meraní, napríklad opuch nohy, tlak alebo hmotnosť.
+- Každá konfigurácia obsahuje jednotku a jednu alebo viac meraných položiek.
+- Používateľ musí vedieť počas dňa pridať viac záznamov s dátumom, časom, hodnotami a poznámkou.
+- Poznámky sa majú ponúkať podľa predchádzajúcich poznámok v danom meraní.
+- Ku každej poznámke v rámci konkrétneho merania sa dá priradiť farba.
+- Graf merania zobrazuje body farbou aktuálne priradenou k poznámke.
+- Detail merania podporuje rozsahy 1 deň, 1 týždeň, 1 mesiac, 6 mesiacov a 1 rok.
+- Pri meraní s viacerými položkami sa zobrazí samostatný graf pre každú položku.
+
+### 4.6 Rozšírené možnosti tréningu
 - **Doplnková záťaž (Váha):**
     - Možnosť definovať váhu (kg) pre každý cvik v tréningovom pláne (okrem cieľového počtu/času).
     - Táto hodnota sa musí **uložiť do histórie** v momente tréningu (snapshot), aby neskoršie úpravy plánu neovplyvnili historické záznamy.

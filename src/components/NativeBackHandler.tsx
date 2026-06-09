@@ -12,8 +12,9 @@ declare global {
 
 const getParentRoute = (pathname: string) => {
     if (pathname === '/') return null;
-    if (pathname === '/cviky' || pathname === '/historia' || pathname === '/progres' || pathname === '/help') return '/';
+    if (pathname === '/cviky' || pathname === '/historia' || pathname === '/merania' || pathname === '/progres' || pathname === '/help') return '/';
     if (pathname.startsWith('/historia/')) return '/historia';
+    if (pathname.startsWith('/merania/')) return '/merania';
     if (pathname.startsWith('/start/')) return '/';
     if (pathname.startsWith('/editor/')) return '/';
     if (pathname.startsWith('/trening/')) return '/';

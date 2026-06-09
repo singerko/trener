@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom';
-import { Home, Dumbbell, Calendar, HelpCircle, TrendingUp } from 'lucide-react';
+import { Home, Dumbbell, Calendar, HelpCircle, TrendingUp, Ruler } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { useEffect } from 'react';
 
@@ -48,6 +48,10 @@ export default function Layout() {
                 <NavLink to="/historia" className={({ isActive }) => `flex flex-col items-center gap-1 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-neutral-400 dark:text-slate-500'}`}>
                     <Calendar size={24} />
                     <span className="uppercase">História</span>
+                </NavLink>
+                <NavLink to="/merania" className={({ isActive }) => `flex flex-col items-center gap-1 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-neutral-400 dark:text-slate-500'}`}>
+                    <Ruler size={24} />
+                    <span className="uppercase">Merania</span>
                 </NavLink>
                 <NavLink to="/progres" className={({ isActive }) => `flex flex-col items-center gap-1 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-neutral-400 dark:text-slate-500'}`}>
                     <TrendingUp size={24} />

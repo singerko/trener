@@ -61,13 +61,33 @@ Počas tréningu je hore dostupné tlačidlo rýchlej úpravy. Vieš ním zmeni�
 
 ## História
 
-Karta **História** zobrazuje kalendár a tréningy odcvičené v konkrétny deň.
+Karta **História** zobrazuje kalendár a tréningy odcvičené v konkrétny deň. V kalendári sa zobrazujú aj rehabilitácie a uložené merania.
 
 <img src="docs/screenshots/07-historia.png" width="260" alt="História tréningov">
 
 Detail tréningu ukazuje časový priebeh setov a cvikov, reálne odcvičené počty, trvanie, váhy a parametre držaných cvikov.
 
 <img src="docs/screenshots/08-detail-historie.png" width="260" alt="Detail histórie tréningu">
+
+## Merania
+
+Karta **Merania** slúži na sledovanie zdravotných alebo tréningových hodnôt mimo samotných tréningov. Najprv vytvoríš konfiguráciu merania:
+
+- názov, napríklad **Hmotnosť**,
+- jednotku, napríklad `cm`, `kg` alebo `mmHg`,
+- merané položky, napríklad `pod kolenom`, `cez koleno`, `nad kolenom`.
+
+Potom môžeš počas dňa ukladať konkrétne záznamy s dátumom, časom, hodnotami a poznámkou. Poznámky sa ponúkajú pri písaní podľa predchádzajúcich záznamov v danom meraní. Ku každej poznámke môžeš priradiť farbu.
+
+Farby poznámok sú viazané na konkrétne meranie. Poznámka `ráno` teda môže byť pri hmotnosti zelená a pri tlaku modrá. Zmena farby poznámky spätne prefarbí aj historické body v grafe pre dané meranie.
+
+Detail merania zobrazuje samostatný graf pre každú meranú položku. Dostupné rozsahy grafu sú:
+
+- 1 deň,
+- 1 týždeň,
+- 1 mesiac,
+- 6 mesiacov,
+- 1 rok.
 
 ## Knižnica cvikov
 
@@ -106,7 +126,7 @@ Na pozastavenie tréningu použi tlačidlo v aplikácii. Hlasový povel `pauza` 
 
 ## Lokálne dáta
 
-Aplikácia ukladá tréningy, cviky, históriu a nastavenia lokálne v zariadení. Ak chceš tréning preniesť do iného zariadenia, použi export a import.
+Aplikácia ukladá tréningy, cviky, históriu, rehabilitácie, merania a nastavenia lokálne v zariadení. Ak chceš tréning preniesť do iného zariadenia, použi export a import tréningu. Merania zatiaľ nie sú súčasťou exportu tréningových plánov.
 
 ## Vývoj a build
 
