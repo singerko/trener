@@ -1,86 +1,178 @@
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { Capacitor } from '@capacitor/core';
 
-// --- TEXT TO SPEECH SERVICE (Služba na Rozprávanie) ---
-// Úloha: Postarať sa o to, aby vety boli povedané pekne za sebou (Fronta/Queue).
-// Ak by sme len zavolali speak() 3x za sebou, Native vrstva by buď sekla prvú vetu, alebo ignorovala ostatné.
+type QueueItem = {
+    text: string;
+    lang: string;
+    resolve: () => void;
+    reject: (e: unknown) => void;
+};
 
-let isSpeaking = false; // Flag: Rozprávam práve teraz?
+let isSpeaking = false;
+let activeItem: QueueItem | null = null;
+let activeWebUtterance: SpeechSynthesisUtterance | null = null;
+let webSpeechUnlocked = false;
+let webSpeechUnlockAttempted = false;
+const queue: QueueItem[] = [];
 
-// Fronta príkazov.
-// Každá položka obsahuje nielen text, ale aj funkcie 'resolve' a 'reject'.
-// To nám umožňuje spojiť "požiadavku" (vyslov toto) s "výsledkom" (dohovoril som) cez Promise.
-const queue: { text: string; lang: string; resolve: () => void; reject: (e: any) => void }[] = [];
+const isNativeTts = () => Capacitor.isNativePlatform();
+
+const getSpeechSynthesis = () => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+        return null;
+    }
+
+    return window.speechSynthesis;
+};
+
+const getSpeechSynthesisUtterance = () => {
+    if (typeof window === 'undefined' || !('SpeechSynthesisUtterance' in window)) {
+        return null;
+    }
+
+    return window.SpeechSynthesisUtterance;
+};
+
+const primeWebSpeech = () => {
+    if (webSpeechUnlocked || webSpeechUnlockAttempted || isNativeTts()) return;
+
+    const synthesis = getSpeechSynthesis();
+    const Utterance = getSpeechSynthesisUtterance();
+    if (!synthesis || !Utterance) return;
+
+    webSpeechUnlockAttempted = true;
+
+    try {
+        const utterance = new Utterance(' ');
+        utterance.lang = 'sk-SK';
+        utterance.volume = 0.01;
+        utterance.onend = () => {
+            webSpeechUnlocked = true;
+        };
+        utterance.onerror = () => {
+            webSpeechUnlockAttempted = false;
+        };
+
+        synthesis.cancel();
+        synthesis.speak(utterance);
+    } catch (e) {
+        webSpeechUnlockAttempted = false;
+        console.warn('Web TTS unlock failed:', e);
+    }
+};
+
+if (typeof window !== 'undefined') {
+    const events: Array<keyof WindowEventMap> = ['pointerup', 'touchend', 'click'];
+    events.forEach(eventName => {
+        window.addEventListener(eventName, primeWebSpeech, { passive: true });
+    });
+}
+
+const speakOnWeb = (text: string, lang: string) => {
+    const synthesis = getSpeechSynthesis();
+    const Utterance = getSpeechSynthesisUtterance();
+    if (!synthesis || !Utterance) {
+        return Promise.reject(new Error('Web Speech API is not available'));
+    }
+
+    return new Promise<void>((resolve, reject) => {
+        let settled = false;
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        const utterance = new Utterance(text);
+        utterance.lang = lang;
+        utterance.rate = 1;
+        utterance.pitch = 1;
+        utterance.volume = 1;
+
+        const finish = () => {
+            if (settled) return;
+            settled = true;
+            if (timeoutId) clearTimeout(timeoutId);
+            if (activeWebUtterance === utterance) {
+                activeWebUtterance = null;
+            }
+            resolve();
+        };
+
+        const fail = (event: SpeechSynthesisErrorEvent) => {
+            if (settled) return;
+            settled = true;
+            if (timeoutId) clearTimeout(timeoutId);
+            if (activeWebUtterance === utterance) {
+                activeWebUtterance = null;
+            }
+            reject(event);
+        };
+
+        utterance.onstart = () => {
+            webSpeechUnlocked = true;
+        };
+        utterance.onend = finish;
+        utterance.onerror = fail;
+
+        if (synthesis.paused) {
+            synthesis.resume();
+        }
+
+        activeWebUtterance = utterance;
+        synthesis.speak(utterance);
+
+        // iOS Safari can occasionally miss onend. Keep the workout queue moving.
+        const estimatedMs = Math.max(2000, text.length * 120 + 1500);
+        timeoutId = setTimeout(finish, estimatedMs);
+    });
+};
+
+const speakOnNative = (text: string, lang: string) => TextToSpeech.speak({
+    text,
+    lang,
+    rate: 1.0,
+    pitch: 1.0,
+    volume: 1.0,
+    category: 'ambient',
+});
 
 const processQueue = async () => {
-    // Ak už rozprávam, alebo je fronta prázdna, nerob nič.
     if (isSpeaking || queue.length === 0) return;
 
     const current = queue.shift();
     if (!current) return;
 
-    isSpeaking = true; // Zdvihneme vlajku
-    try {
-        // Voláme Capacitor Plugin (Android Native TTS)
-        await TextToSpeech.speak({
-            text: current.text,
-            lang: current.lang,
-            rate: 1.0,
-            pitch: 1.0,
-            volume: 1.0,
-            category: 'ambient',
-        });
+    isSpeaking = true;
+    activeItem = current;
 
-        // --- ÚSPECH ---
-        // Tu sa stane mágia. Zavolaním 'resolve()' hovoríme kódu, ktorý čaká na 'await speak(...)',
-        // že môže pokračovať ďalej. Je to ako "Callback", ale zabalený do Promise.
+    try {
+        if (isNativeTts()) {
+            await speakOnNative(current.text, current.lang);
+        } else {
+            await speakOnWeb(current.text, current.lang);
+        }
         current.resolve();
     } catch (e) {
         console.error('TTS Error:', e);
-        if (!Capacitor.isNativePlatform()) {
-            // Web Fallback (pre testovanie v prehliadači)
-            // Prehliadače majú vlastné API: window.speechSynthesis
-            try {
-                const utterance = new SpeechSynthesisUtterance(current.text);
-                utterance.lang = current.lang;
-
-                // Web API nepodporuje priamo Promise, tak ho musíme "obaliť".
-                await new Promise<void>((resolve, reject) => {
-                    utterance.onend = () => resolve(); // Keď dohovorí -> resolve
-                    utterance.onerror = (err) => reject(err);
-                    window.speechSynthesis.speak(utterance);
-                });
-                current.resolve();
-            } catch (webErr) {
-                console.error("Web TTS failed", webErr);
-                current.reject(webErr);
-            }
-        } else {
-            // Ak zlyhá Native, vrátime chybu
-            current.reject(e);
-        }
+        current.reject(e);
     } finally {
-        isSpeaking = false; // Zložíme vlajku
-        processQueue(); // Rekurzívne skúsime spracovať ďalšiu položku
+        if (activeItem === current) {
+            activeItem = null;
+        }
+        isSpeaking = false;
+        processQueue();
     }
 };
 
-/**
- * Hlavná funkcia pre vonkajší svet.
- * Všimni si, že vracia 'Promise<void>'.
- * To znamená, že volajúci môže napísať: 'await speak("Ahoj")' a kód počká, kým to naozaj dohovorí.
- */
-export const speak = async (text: string, lang: string = 'sk-SK', options: { interrupt?: boolean } = {}): Promise<void> => {
+export const speak = async (
+    text: string,
+    lang: string = 'sk-SK',
+    options: { interrupt?: boolean } = {},
+): Promise<void> => {
+    if (!text.trim()) return;
+
     if (options.interrupt) {
         await stopSpeech();
     }
 
     return new Promise((resolve, reject) => {
-        // Namiesto toho, aby sme rovno volali plugin, len pridáme požiadavku do fronty.
-        // Odovzdávame 'resolve' a 'reject' funkcie, aby ich 'processQueue' mohol zavolať neskôr.
         queue.push({ text, lang, resolve, reject });
-
-        // Spustíme spracovanie fronty (ak nebeží)
         processQueue();
     });
 };
@@ -88,13 +180,22 @@ export const speak = async (text: string, lang: string = 'sk-SK', options: { int
 export const stopSpeech = async () => {
     const queued = queue.splice(0);
     queued.forEach(item => item.resolve());
+
+    if (activeItem) {
+        activeItem.resolve();
+        activeItem = null;
+    }
+
     try {
-        await TextToSpeech.stop();
-        if (!Capacitor.isNativePlatform()) {
-            window.speechSynthesis.cancel();
+        if (isNativeTts()) {
+            await TextToSpeech.stop();
+        } else {
+            getSpeechSynthesis()?.cancel();
+            activeWebUtterance = null;
         }
     } catch (e) {
         console.error('TTS Stop Error', e);
+    } finally {
+        isSpeaking = false;
     }
-    isSpeaking = false;
-}
+};

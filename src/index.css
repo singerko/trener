@@ -121,6 +121,12 @@ body {
   line-height: 1;
 }
 
+.singerland-logo__lockup {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
 .singerland-logo__singer,
 .singerland-logo__land {
   font-family: "Syne", sans-serif;

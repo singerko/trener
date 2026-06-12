@@ -17,15 +17,17 @@ export default function SingerLandLogo({ subtitle, size = 'md', centered = false
 
     return (
         <div className={`singerland-logo ${centered ? 'items-center' : 'items-start'}`}>
-            <div className="flex items-baseline">
-                <span className="singerland-logo__singer" style={{ fontSize: fs.brand }}>Singer</span>
-                <span className="singerland-logo__land" style={{ fontSize: fs.brand }}>Land</span>
+            <div className="singerland-logo__lockup">
+                <div className="flex items-baseline">
+                    <span className="singerland-logo__singer" style={{ fontSize: fs.brand }}>Singer</span>
+                    <span className="singerland-logo__land" style={{ fontSize: fs.brand }}>Land</span>
+                </div>
+                {subtitle && (
+                    <span className="singerland-logo__subtitle" style={{ fontSize: fs.sub }}>
+                        {subtitle}
+                    </span>
+                )}
             </div>
-            {subtitle && (
-                <span className="singerland-logo__subtitle" style={{ fontSize: fs.sub }}>
-                    {subtitle}
-                </span>
-            )}
         </div>
     );
 }
