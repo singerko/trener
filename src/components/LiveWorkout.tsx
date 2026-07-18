@@ -41,6 +41,8 @@ type QuickEditDraft = {
     setTotal: string;
 };
 
+type MediaButtonCommand = 'play' | 'pause' | 'toggle';
+
 const workoutFinishMessages = [
     'Dobrá práca, tréning je hotový.',
     'Išlo ti to skvelo.',
@@ -108,6 +110,9 @@ export default function LiveWorkout() {
     const metronomeNextTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const sessionModeRef = useRef<InputMode | null>(null);
     const suppressNextIdleAnnouncementRef = useRef(false);
+    const mediaButtonHandlerRef = useRef<(command?: MediaButtonCommand) => boolean>(() => false);
+    const appPausedHandlerRef = useRef<() => boolean>(() => false);
+    const lastMediaButtonAtRef = useRef(0);
 
     // Beep / Sound Mock
     const playSound = (type: 'BEEP' | 'START' | 'FINISH' | 'TICK') => {
@@ -242,6 +247,50 @@ export default function LiveWorkout() {
         setStatus('PAUSED');
         safeSpeak("Pauza", { interrupt: true });
     };
+
+    const handleMediaButton = (command: MediaButtonCommand = 'toggle') => {
+        const now = Date.now();
+        if (now - lastMediaButtonAtRef.current < 650) {
+            return true;
+        }
+        lastMediaButtonAtRef.current = now;
+
+        const shouldPause = command === 'pause' || command === 'toggle';
+
+        if (status === 'IDLE' || status === 'PAUSED') {
+            handleStart('BUTTON');
+            return true;
+        }
+
+        if (shouldPause && status === 'RUNNING') {
+            handlePause();
+            return true;
+        }
+
+        return false;
+    };
+
+    const handleAppPaused = () => {
+        if (status === 'RUNNING') {
+            handlePause();
+            return true;
+        }
+
+        return false;
+    };
+
+    useEffect(() => {
+        mediaButtonHandlerRef.current = handleMediaButton;
+        appPausedHandlerRef.current = handleAppPaused;
+    });
+
+    useEffect(() => {
+        try {
+            window.TrenerNativeMedia?.setWorkoutPlaybackState(status === 'RUNNING');
+        } catch (error) {
+            console.warn('Nepodarilo sa synchronizovať stav mediálneho tlačidla', error);
+        }
+    }, [status]);
 
     const requestWorkoutExit = useCallback(() => {
         if (status === 'FINISHED') {
@@ -587,6 +636,26 @@ export default function LiveWorkout() {
             }
         };
     }, [requestWorkoutExit]);
+
+    useEffect(() => {
+        const handleNativeMediaButton = (event: Event) => {
+            const detail = (event as CustomEvent<{ command?: MediaButtonCommand }>).detail;
+            mediaButtonHandlerRef.current(detail?.command ?? 'toggle');
+        };
+        const handleNativeAppPaused = () => {
+            appPausedHandlerRef.current();
+        };
+
+        window.TrenerMediaButton = () => mediaButtonHandlerRef.current('toggle');
+        window.addEventListener('trener:media-button', handleNativeMediaButton);
+        window.addEventListener('trener:app-paused', handleNativeAppPaused);
+
+        return () => {
+            window.removeEventListener('trener:media-button', handleNativeMediaButton);
+            window.removeEventListener('trener:app-paused', handleNativeAppPaused);
+            delete window.TrenerMediaButton;
+        };
+    }, []);
 
     // --- KEEP AWAKE (Waze Mode) ---
     useEffect(() => {

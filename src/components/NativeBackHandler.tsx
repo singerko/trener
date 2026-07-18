@@ -7,6 +7,10 @@ declare global {
             handle: () => boolean;
         };
         TrenerConfirmWorkoutExit?: () => boolean;
+        TrenerMediaButton?: () => boolean;
+        TrenerNativeMedia?: {
+            setWorkoutPlaybackState: (running: boolean) => void;
+        };
     }
 }
 

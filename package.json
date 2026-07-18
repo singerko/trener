@@ -1,7 +1,7 @@
 {
   "name": "trener",
   "private": true,
-  "version": "1.96.46",
+  "version": "1.96.50",
   "type": "module",
   "scripts": {
     "dev": "vite",
