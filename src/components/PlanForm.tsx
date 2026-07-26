@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Plus, Save, Trash2, ArrowUp, ArrowDown, X, Clock, Dumbbell, Edit2, RotateCcw, ChevronLeft, Timer } from 'lucide-react';
+import { Plus, Save, Trash2, ArrowUp, ArrowDown, X, Clock, Dumbbell, Edit2, RotateCcw, ChevronLeft, Timer, ListOrdered } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { Cvik, CvikType, SetBlock, SetItem, WorkoutPlan } from '../lib/types';
 
@@ -12,6 +12,8 @@ type ItemDraft = {
     restBetweenRepsSec: string;
     restAfterSec: string;
     metronomeSec: string;
+    phaseCount: string;
+    phaseDurationsSec: string[];
 };
 
 interface PlanFormProps {
@@ -37,6 +39,8 @@ const createItemDraft = (cvikId = ''): ItemDraft => ({
     restBetweenRepsSec: '5',
     restAfterSec: '0',
     metronomeSec: '2',
+    phaseCount: '3',
+    phaseDurationsSec: ['10', '5', '3'],
 });
 
 const typeMeta: Record<CvikType, { label: string; badge: string; unit: string }> = {
@@ -44,6 +48,7 @@ const typeMeta: Record<CvikType, { label: string; badge: string; unit: string }>
     CASOVY: { label: 'Čas', badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', unit: 's' },
     DRZANE_OPAKOVANIA: { label: 'Držané', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300', unit: 'x' },
     METRONOM: { label: 'Metronóm', badge: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300', unit: 'x' },
+    FAZOVE: { label: 'Fázové', badge: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300', unit: 'x' },
 };
 
 export default function PlanForm({
@@ -116,6 +121,38 @@ export default function PlanForm({
                 restBetweenRepsSec: undefined,
                 restAfterSec: undefined,
                 metronomeSec,
+                phaseDurationsSec: undefined,
+            };
+        }
+
+        if (draft.typ === 'FAZOVE') {
+            const phaseCount = Number.parseInt(draft.phaseCount, 10);
+            if (!Number.isFinite(phaseCount) || phaseCount < 1) {
+                alert('Počet fáz musí byť celé číslo väčšie ako 0');
+                return null;
+            }
+            const phaseDurationsSec: number[] = [];
+            for (let index = 0; index < phaseCount; index += 1) {
+                const phaseDuration = parsePositiveInt(draft.phaseDurationsSec[index], `Fáza ${index + 1}`);
+                if (phaseDuration === null) return null;
+                phaseDurationsSec.push(phaseDuration);
+            }
+            if (phaseDurationsSec.length < 1) {
+                alert('Fázové cvičenie musí mať aspoň jednu fázu');
+                return null;
+            }
+            const restBetweenRepsSec = parseNonNegativeInt(draft.restBetweenRepsSec, 'Pauza medzi opakovaniami');
+            if (restBetweenRepsSec === null) return null;
+            return {
+                typ: draft.typ,
+                ciel,
+                cvik_id: draft.cvikId,
+                vaha,
+                holdSec: undefined,
+                restBetweenRepsSec,
+                restAfterSec: undefined,
+                metronomeSec: undefined,
+                phaseDurationsSec,
             };
         }
 
@@ -129,6 +166,7 @@ export default function PlanForm({
                 restBetweenRepsSec: undefined,
                 restAfterSec: undefined,
                 metronomeSec: undefined,
+                phaseDurationsSec: undefined,
             };
         }
 
@@ -148,6 +186,7 @@ export default function PlanForm({
             restBetweenRepsSec,
             restAfterSec,
             metronomeSec: undefined,
+            phaseDurationsSec: undefined,
         };
     };
 
@@ -159,6 +198,8 @@ export default function PlanForm({
         restBetweenRepsSec: draft.restBetweenRepsSec || '5',
         restAfterSec: draft.restAfterSec || '0',
         metronomeSec: draft.metronomeSec || '2',
+        phaseCount: draft.phaseCount || String(draft.phaseDurationsSec.length || 3),
+        phaseDurationsSec: draft.phaseDurationsSec.length > 0 ? draft.phaseDurationsSec : ['10', '5', '3'],
     });
 
     const addSet = (typ: 'NORMAL' | 'ROZCVICKA') => {
@@ -248,6 +289,8 @@ export default function PlanForm({
                 restBetweenRepsSec: item.restBetweenRepsSec === undefined ? '5' : String(item.restBetweenRepsSec),
                 restAfterSec: item.restAfterSec === undefined ? '0' : String(item.restAfterSec),
                 metronomeSec: item.metronomeSec === undefined ? '2' : String(item.metronomeSec),
+                phaseCount: String(item.phaseDurationsSec?.length ?? 3),
+                phaseDurationsSec: item.phaseDurationsSec?.length ? item.phaseDurationsSec.map(String) : ['10', '5', '3'],
             },
         });
         setAddingToSetId(null);
@@ -278,13 +321,15 @@ export default function PlanForm({
         selected: boolean,
         onClick: () => void,
     ) => {
-        const Icon = typ === 'CASOVY' ? Clock : typ === 'DRZANE_OPAKOVANIA' ? RotateCcw : typ === 'METRONOM' ? Timer : Dumbbell;
+        const Icon = typ === 'CASOVY' ? Clock : typ === 'DRZANE_OPAKOVANIA' ? RotateCcw : typ === 'METRONOM' ? Timer : typ === 'FAZOVE' ? ListOrdered : Dumbbell;
         const activeClass = typ === 'CASOVY'
             ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300'
             : typ === 'DRZANE_OPAKOVANIA'
                 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300'
                 : typ === 'METRONOM'
                     ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300'
+                    : typ === 'FAZOVE'
+                        ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/50 dark:text-cyan-300'
                     : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300';
 
         return (
@@ -306,6 +351,7 @@ export default function PlanForm({
                     {renderTypeButton('CASOVY', draft.typ === 'CASOVY', () => onChange(updateDraftType(draft, 'CASOVY')))}
                     {renderTypeButton('DRZANE_OPAKOVANIA', draft.typ === 'DRZANE_OPAKOVANIA', () => onChange(updateDraftType(draft, 'DRZANE_OPAKOVANIA')))}
                     {renderTypeButton('METRONOM', draft.typ === 'METRONOM', () => onChange(updateDraftType(draft, 'METRONOM')))}
+                    {renderTypeButton('FAZOVE', draft.typ === 'FAZOVE', () => onChange(updateDraftType(draft, 'FAZOVE')))}
                 </div>
             </div>
 
@@ -380,6 +426,63 @@ export default function PlanForm({
                     </label>
                     <div className="text-xs font-semibold text-violet-800 dark:text-violet-200">
                         {draft.ciel || 0}x: zvuk každé {draft.metronomeSec || 0}s
+                    </div>
+                </div>
+            )}
+
+            {draft.typ === 'FAZOVE' && (
+                <div className="rounded-lg border border-cyan-100 dark:border-cyan-900/50 bg-cyan-50/70 dark:bg-cyan-950/20 p-3 space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                        <label className="block">
+                            <span className="text-[10px] font-bold uppercase text-cyan-700 dark:text-cyan-300">Počet fáz</span>
+                            <input
+                                type="number"
+                                min="1"
+                                className="mt-1 w-full p-2 rounded-lg border border-cyan-200 dark:border-cyan-800 outline-none focus:border-cyan-500 text-center font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-white"
+                                value={draft.phaseCount}
+                                onChange={e => {
+                                    const nextPhaseCount = e.target.value;
+                                    const parsedCount = Number.parseInt(nextPhaseCount, 10);
+                                    if (!Number.isFinite(parsedCount) || parsedCount < 1) {
+                                        onChange({ ...draft, phaseCount: nextPhaseCount });
+                                        return;
+                                    }
+                                    const nextDurations = Array.from({ length: parsedCount }, (_, index) => draft.phaseDurationsSec[index] ?? '5');
+                                    onChange({ ...draft, phaseCount: nextPhaseCount, phaseDurationsSec: nextDurations });
+                                }}
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-[10px] font-bold uppercase text-cyan-700 dark:text-cyan-300">Pauza medzi opak.</span>
+                            <input
+                                type="number"
+                                min="0"
+                                className="mt-1 w-full p-2 rounded-lg border border-cyan-200 dark:border-cyan-800 outline-none focus:border-cyan-500 text-center font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-white"
+                                value={draft.restBetweenRepsSec}
+                                onChange={e => onChange({ ...draft, restBetweenRepsSec: e.target.value })}
+                            />
+                        </label>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                        {draft.phaseDurationsSec.map((duration, index) => (
+                            <label key={index} className="block">
+                                <span className="text-[10px] font-bold uppercase text-cyan-700 dark:text-cyan-300">Fáza {index + 1}</span>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    className="mt-1 w-full p-2 rounded-lg border border-cyan-200 dark:border-cyan-800 outline-none focus:border-cyan-500 text-center font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-white"
+                                    value={duration}
+                                    onChange={e => {
+                                        const nextDurations = [...draft.phaseDurationsSec];
+                                        nextDurations[index] = e.target.value;
+                                        onChange({ ...draft, phaseDurationsSec: nextDurations });
+                                    }}
+                                />
+                            </label>
+                        ))}
+                    </div>
+                    <div className="text-xs font-semibold text-cyan-800 dark:text-cyan-200">
+                        {draft.ciel || 0}x: fázy {draft.phaseDurationsSec.map(value => `${value || 0}s`).join(' · ')}, pauza {draft.restBetweenRepsSec || 0}s
                     </div>
                 </div>
             )}
@@ -529,6 +632,11 @@ export default function PlanForm({
                                                     {item.typ === 'METRONOM' ? (
                                                         <span className="text-xs font-bold text-violet-600 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/30 px-1.5 py-0.5 rounded">
                                                             každé {item.metronomeSec ?? 2}s
+                                                        </span>
+                                                    ) : null}
+                                                    {item.typ === 'FAZOVE' ? (
+                                                        <span className="text-xs font-bold text-cyan-600 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/30 px-1.5 py-0.5 rounded">
+                                                            fázy {(item.phaseDurationsSec ?? [10, 5, 3]).join('/')}s · pauza {item.restBetweenRepsSec ?? 0}s
                                                         </span>
                                                     ) : null}
                                                     {item.vaha ? (

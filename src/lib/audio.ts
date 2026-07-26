@@ -62,3 +62,7 @@ export const playSoundEffect = (effect: 'START' | 'FINISH' | 'BEEP' | 'TICK') =>
             break;
     }
 };
+
+export const primeAudioOutput = () => {
+    playTone(440, 'sine', 0.03, 0.001);
+};

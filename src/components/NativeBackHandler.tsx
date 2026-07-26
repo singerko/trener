@@ -10,6 +10,7 @@ declare global {
         TrenerMediaButton?: () => boolean;
         TrenerNativeMedia?: {
             setWorkoutPlaybackState: (running: boolean) => void;
+            setWorkoutMediaState?: (active: boolean, running: boolean) => void;
         };
     }
 }

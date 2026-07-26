@@ -1,4 +1,4 @@
-export type CvikType = 'POCTOVY' | 'CASOVY' | 'DRZANE_OPAKOVANIA' | 'METRONOM';
+export type CvikType = 'POCTOVY' | 'CASOVY' | 'DRZANE_OPAKOVANIA' | 'METRONOM' | 'FAZOVE';
 export type SetType = 'NORMAL' | 'ROZCVICKA';
 export type InputMode = 'VOICE' | 'BUTTON' | 'MIXED';
 
@@ -23,6 +23,7 @@ export interface SetItem {
     restBetweenRepsSec?: number;
     restAfterSec?: number;
     metronomeSec?: number;
+    phaseDurationsSec?: number[];
 }
 
 export interface SetBlock {
@@ -68,6 +69,7 @@ export interface ExerciseLog {
     restBetweenRepsSec?: number;
     restAfterSec?: number;
     metronomeSec?: number;
+    phaseDurationsSec?: number[];
     completedHeldReps?: number;
     durationMs: number;
     events: RepEvent[];

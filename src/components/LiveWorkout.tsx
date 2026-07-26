@@ -4,7 +4,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../lib/store';
 import { Play, Pause, SkipForward, SkipBack, X, Ear, Volume2, VolumeX, Plus, SlidersHorizontal, Mic, MicOff } from 'lucide-react';
 import type { WorkoutPlan, Cvik, WorkoutSession, ExerciseLog, InputMode, RepEvent, CvikType } from '../lib/types';
-import { playSoundEffect } from '../lib/audio';
+import { playSoundEffect, primeAudioOutput } from '../lib/audio';
 import { useVoiceControl, type VoiceCommand } from '../lib/voice';
 import { speak, stopSpeech } from '../lib/tts';
 import { KeepAwake } from '@capacitor-community/keep-awake';
@@ -28,9 +28,11 @@ interface QueueItem {
     restBetweenRepsSec?: number;
     restAfterSec?: number;
     metronomeSec?: number;
+    phaseDurationsSec?: number[];
 }
 
 type HeldRepPhase = 'HOLD' | 'REST_BETWEEN_REPS';
+type PhaseExerciseStep = 'PHASE' | 'REST_BETWEEN_REPS';
 
 type QuickEditDraft = {
     target: string;
@@ -38,6 +40,8 @@ type QuickEditDraft = {
     holdSec: string;
     restBetweenRepsSec: string;
     metronomeSec: string;
+    phaseCount: string;
+    phaseDurationsSec: string[];
     setTotal: string;
 };
 
@@ -95,6 +99,10 @@ export default function LiveWorkout() {
     const [heldRepIndex, setHeldRepIndex] = useState(1);
     const [heldRepPhase, setHeldRepPhase] = useState<HeldRepPhase>('HOLD');
     const [completedHeldReps, setCompletedHeldReps] = useState(0);
+    const [phaseRepIndex, setPhaseRepIndex] = useState(1);
+    const [phaseIndex, setPhaseIndex] = useState(0);
+    const [phaseStep, setPhaseStep] = useState<PhaseExerciseStep>('PHASE');
+    const [completedPhaseReps, setCompletedPhaseReps] = useState(0);
     const [quickEditDraft, setQuickEditDraft] = useState<QuickEditDraft | null>(null);
     const [showExitConfirm, setShowExitConfirm] = useState(false);
 
@@ -145,6 +153,11 @@ export default function LiveWorkout() {
         if (metronomeNextTimeoutRef.current) clearTimeout(metronomeNextTimeoutRef.current);
         metronomeEndTimeoutRef.current = null;
         metronomeNextTimeoutRef.current = null;
+    };
+
+    const playPhaseTransition = () => {
+        playSound('TICK');
+        setTimeout(() => playSound('TICK'), 140);
     };
 
     // --- VOICE LOCKOUT LOGIC (Logika Zámku) ---
@@ -248,21 +261,19 @@ export default function LiveWorkout() {
         safeSpeak("Pauza", { interrupt: true });
     };
 
-    const handleMediaButton = (command: MediaButtonCommand = 'toggle') => {
+    const handleMediaButton = () => {
         const now = Date.now();
         if (now - lastMediaButtonAtRef.current < 650) {
             return true;
         }
         lastMediaButtonAtRef.current = now;
 
-        const shouldPause = command === 'pause' || command === 'toggle';
-
         if (status === 'IDLE' || status === 'PAUSED') {
             handleStart('BUTTON');
             return true;
         }
 
-        if (shouldPause && status === 'RUNNING') {
+        if (status === 'RUNNING') {
             handlePause();
             return true;
         }
@@ -286,11 +297,25 @@ export default function LiveWorkout() {
 
     useEffect(() => {
         try {
-            window.TrenerNativeMedia?.setWorkoutPlaybackState(status === 'RUNNING');
+            if (window.TrenerNativeMedia?.setWorkoutMediaState) {
+                window.TrenerNativeMedia.setWorkoutMediaState(status !== 'FINISHED', status === 'RUNNING');
+            } else {
+                window.TrenerNativeMedia?.setWorkoutPlaybackState(status === 'RUNNING');
+            }
         } catch (error) {
             console.warn('Nepodarilo sa synchronizovať stav mediálneho tlačidla', error);
         }
     }, [status]);
+
+    useEffect(() => {
+        return () => {
+            try {
+                window.TrenerNativeMedia?.setWorkoutPlaybackState(false);
+            } catch {
+                // Native bridge may already be gone while the WebView is unloading.
+            }
+        };
+    }, []);
 
     const requestWorkoutExit = useCallback(() => {
         if (status === 'FINISHED') {
@@ -345,6 +370,13 @@ export default function LiveWorkout() {
         setCompletedHeldReps(0);
     };
 
+    const resetPhaseExerciseState = () => {
+        setPhaseRepIndex(1);
+        setPhaseIndex(0);
+        setPhaseStep('PHASE');
+        setCompletedPhaseReps(0);
+    };
+
     const parseQuickPositiveInt = (value: string, fallback: number) => {
         const parsed = Number.parseInt(value, 10);
         if (!Number.isFinite(parsed) || parsed < 1) return fallback;
@@ -374,6 +406,8 @@ export default function LiveWorkout() {
             holdSec: String(current.holdSec ?? 20),
             restBetweenRepsSec: String(current.restBetweenRepsSec ?? 0),
             metronomeSec: String(current.metronomeSec ?? 2),
+            phaseCount: String(current.phaseDurationsSec?.length ?? 3),
+            phaseDurationsSec: (current.phaseDurationsSec?.length ? current.phaseDurationsSec : [10, 5, 3]).map(String),
             setTotal: String(current.setTotal),
         });
     };
@@ -390,6 +424,13 @@ export default function LiveWorkout() {
             current.restBetweenRepsSec ?? 0,
         );
         const nextMetronomeSec = parseQuickPositiveInt(quickEditDraft.metronomeSec, current.metronomeSec ?? 2);
+        const requestedPhaseCount = parseQuickPositiveInt(
+            quickEditDraft.phaseCount,
+            current.phaseDurationsSec?.length ?? quickEditDraft.phaseDurationsSec.length,
+        );
+        const nextPhaseDurationsSec = Array.from({ length: requestedPhaseCount }, (_, index) => {
+            return parseQuickPositiveInt(quickEditDraft.phaseDurationsSec[index], current.phaseDurationsSec?.[index] ?? 5);
+        });
         const requestedSetTotal = parseQuickPositiveInt(quickEditDraft.setTotal, current.setTotal);
         const nextSetTotal = Math.min(Math.max(requestedSetTotal, current.setIndex), current.setTotal);
 
@@ -405,8 +446,11 @@ export default function LiveWorkout() {
                     holdSec: shouldUpdateExercise && item.type === 'DRZANE_OPAKOVANIA' ? nextHoldSec : item.holdSec,
                     restBetweenRepsSec: shouldUpdateExercise && item.type === 'DRZANE_OPAKOVANIA'
                         ? nextRestBetweenRepsSec
+                        : shouldUpdateExercise && item.type === 'FAZOVE'
+                            ? nextRestBetweenRepsSec
                         : item.restBetweenRepsSec,
                     metronomeSec: shouldUpdateExercise && item.type === 'METRONOM' ? nextMetronomeSec : item.metronomeSec,
+                    phaseDurationsSec: shouldUpdateExercise && item.type === 'FAZOVE' ? nextPhaseDurationsSec : item.phaseDurationsSec,
                     setTotal: shouldUpdateSetTotal ? nextSetTotal : item.setTotal,
                 };
             })
@@ -448,6 +492,8 @@ export default function LiveWorkout() {
                     ? progress
                     : current.type === 'DRZANE_OPAKOVANIA'
                         ? completedHeldReps
+                        : current.type === 'FAZOVE'
+                            ? completedPhaseReps
                         : Math.min(progress, current.target)
             ),
             vaha: current.vaha,
@@ -456,6 +502,7 @@ export default function LiveWorkout() {
             restBetweenRepsSec: current.restBetweenRepsSec,
             restAfterSec: current.restAfterSec,
             metronomeSec: current.metronomeSec,
+            phaseDurationsSec: current.phaseDurationsSec,
             completedHeldReps: current.type === 'DRZANE_OPAKOVANIA' ? (overrides.reps ?? completedHeldReps) : undefined,
             events: overrides.events ?? repEvents
         };
@@ -521,6 +568,7 @@ export default function LiveWorkout() {
             setProgress(0);
             setRepEvents([]);
             resetHeldRepState();
+            resetPhaseExerciseState();
         } else {
             // Last item finished
             handleFinishWorkout(newLog);
@@ -534,6 +582,7 @@ export default function LiveWorkout() {
             setProgress(0);
             setRepEvents([]);
             resetHeldRepState();
+            resetPhaseExerciseState();
             stopSpeech();
         }
     };
@@ -563,7 +612,7 @@ export default function LiveWorkout() {
         // 2. STOP Trigger (Mapped to NEXT)
         else if (cmd === 'NEXT') {
             if (status === 'RUNNING') {
-                if (currentExercise?.type === 'POCTOVY' || currentExercise?.type === 'DRZANE_OPAKOVANIA' || currentExercise?.type === 'METRONOM') {
+                if (currentExercise?.type === 'POCTOVY' || currentExercise?.type === 'DRZANE_OPAKOVANIA' || currentExercise?.type === 'METRONOM' || currentExercise?.type === 'FAZOVE') {
                     // Start Lockout before switching state
                     voiceLockoutCounter.current += 1;
                     setVoiceLockout(true);
@@ -725,6 +774,7 @@ export default function LiveWorkout() {
                             restBetweenRepsSec: item.restBetweenRepsSec,
                             restAfterSec: item.restAfterSec,
                             metronomeSec: item.metronomeSec,
+                            phaseDurationsSec: item.phaseDurationsSec,
                         });
                     }
                 });
@@ -736,8 +786,12 @@ export default function LiveWorkout() {
         setProgress(0);
         setRepEvents([]);
         resetHeldRepState();
+        resetPhaseExerciseState();
         setSessionLog([]);
         sessionModeRef.current = null;
+        if (p.skipHistory) {
+            primeAudioOutput();
+        }
 
         // Cleanup on unmount
         return () => {
@@ -833,9 +887,56 @@ export default function LiveWorkout() {
                 safeSpeak(`${getRepWord(nextRep)}. Drž.`, { interrupt: true });
             }
         }
+        if (status === 'RUNNING' && current?.type === 'FAZOVE') {
+            const phases = current.phaseDurationsSec?.length ? current.phaseDurationsSec : [10, 5, 3];
+            const restBetweenRepsSec = current.restBetweenRepsSec ?? 0;
+
+            if (phaseStep === 'PHASE') {
+                const currentPhaseDuration = phases[phaseIndex] ?? phases[0] ?? 1;
+                if (progress > 0 && progress <= currentPhaseDuration) {
+                    safeSpeak(String(progress), { interrupt: true });
+                }
+
+                if (progress >= currentPhaseDuration) {
+                    const isLastPhase = phaseIndex >= phases.length - 1;
+
+                    if (!isLastPhase) {
+                        playPhaseTransition();
+                        setPhaseIndex(previous => previous + 1);
+                        setProgress(0);
+                        return;
+                    }
+
+                    const completed = phaseRepIndex;
+                    setCompletedPhaseReps(completed);
+                    playPhaseTransition();
+
+                    if (completed >= current.target) {
+                        handleNext(undefined, { reps: completed });
+                        return;
+                    }
+
+                    if (restBetweenRepsSec > 0) {
+                        setPhaseStep('REST_BETWEEN_REPS');
+                        setProgress(0);
+                        safeSpeak('Pauza.', { interrupt: true });
+                    } else {
+                        setPhaseRepIndex(previous => previous + 1);
+                        setPhaseIndex(0);
+                        setProgress(0);
+                    }
+                }
+            } else if (progress >= restBetweenRepsSec) {
+                setPhaseRepIndex(previous => previous + 1);
+                setPhaseIndex(0);
+                setPhaseStep('PHASE');
+                setProgress(0);
+                playPhaseTransition();
+            }
+        }
         // handleNext intentionally uses the current render snapshot for the active exercise.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [progress, heldRepPhase, heldRepIndex]);
+    }, [progress, heldRepPhase, heldRepIndex, phaseStep, phaseIndex, phaseRepIndex]);
 
     // TTS STATE ANNOUNCEMENT LOGIC (Intro / Transitions)
     // Only runs when IDLE and currentIndex changes (or on mount)
@@ -903,7 +1004,12 @@ export default function LiveWorkout() {
     const isTimer = currentItem.type === 'CASOVY';
     const isHeldReps = currentItem.type === 'DRZANE_OPAKOVANIA';
     const isMetronome = currentItem.type === 'METRONOM';
+    const isPhaseExercise = currentItem.type === 'FAZOVE';
     const isManualCounter = currentItem.type === 'POCTOVY';
+    const phaseDurations = currentItem.phaseDurationsSec?.length ? currentItem.phaseDurationsSec : [10, 5, 3];
+    const phaseTarget = phaseStep === 'PHASE'
+        ? (phaseDurations[phaseIndex] ?? phaseDurations[0] ?? 1)
+        : (currentItem.restBetweenRepsSec ?? 0);
     const heldPhaseTarget = heldRepPhase === 'HOLD'
         ? (currentItem.holdSec ?? 20)
         : (currentItem.restBetweenRepsSec ?? 0);
@@ -913,11 +1019,15 @@ export default function LiveWorkout() {
             ? Math.min(100, (progress / currentItem.target) * 100)
         : isHeldReps && heldPhaseTarget > 0
             ? Math.min(100, (progress / heldPhaseTarget) * 100)
+            : isPhaseExercise && phaseTarget > 0
+                ? Math.min(100, (progress / phaseTarget) * 100)
             : 0;
     const heldRemaining = Math.max(0, heldPhaseTarget - progress);
+    const phaseRemaining = Math.max(0, phaseTarget - progress);
     const exerciseDescription = currentItem.cvik.popis.trim();
     const heldExerciseInstructions = `${currentItem.target}x držať ${currentItem.holdSec ?? 20}s, pauza ${currentItem.restBetweenRepsSec ?? 0}s`;
     const metronomeInstructions = `${currentItem.target}x automaticky, zvuk každé ${currentItem.metronomeSec ?? 2}s`;
+    const phaseInstructions = `${currentItem.target}x fázy ${phaseDurations.map(value => `${value}s`).join(' · ')}, pauza ${currentItem.restBetweenRepsSec ?? 0}s`;
 
     return (
         <div className="safe-screen bg-neutral-900 text-white flex flex-col relative overflow-hidden">
@@ -1161,6 +1271,60 @@ export default function LiveWorkout() {
                                     </label>
                                 )}
 
+                                {currentItem.type === 'FAZOVE' && (
+                                    <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-3 space-y-3">
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <label>
+                                                <span className="text-[10px] font-black uppercase text-cyan-300">Počet fáz</span>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    className="mt-1 w-full rounded-lg border border-cyan-700 bg-neutral-900 p-3 text-center text-xl font-black text-white outline-none focus:border-cyan-400"
+                                                    value={quickEditDraft.phaseCount}
+                                                    onChange={(event) => {
+                                                        const nextPhaseCount = event.target.value;
+                                                        const parsedCount = Number.parseInt(nextPhaseCount, 10);
+                                                        if (!Number.isFinite(parsedCount) || parsedCount < 1) {
+                                                            setQuickEditDraft({ ...quickEditDraft, phaseCount: nextPhaseCount });
+                                                            return;
+                                                        }
+                                                        const nextDurations = Array.from({ length: parsedCount }, (_, index) => quickEditDraft.phaseDurationsSec[index] ?? '5');
+                                                        setQuickEditDraft({ ...quickEditDraft, phaseCount: nextPhaseCount, phaseDurationsSec: nextDurations });
+                                                    }}
+                                                />
+                                            </label>
+                                            <label>
+                                                <span className="text-[10px] font-black uppercase text-cyan-300">Pauza</span>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    className="mt-1 w-full rounded-lg border border-cyan-700 bg-neutral-900 p-3 text-center text-xl font-black text-white outline-none focus:border-cyan-400"
+                                                    value={quickEditDraft.restBetweenRepsSec}
+                                                    onChange={(event) => setQuickEditDraft({ ...quickEditDraft, restBetweenRepsSec: event.target.value })}
+                                                />
+                                            </label>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {quickEditDraft.phaseDurationsSec.map((duration, index) => (
+                                                <label key={index}>
+                                                    <span className="text-[10px] font-black uppercase text-cyan-300">Fáza {index + 1}</span>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        className="mt-1 w-full rounded-lg border border-cyan-700 bg-neutral-900 p-3 text-center text-xl font-black text-white outline-none focus:border-cyan-400"
+                                                        value={duration}
+                                                        onChange={(event) => {
+                                                            const nextDurations = [...quickEditDraft.phaseDurationsSec];
+                                                            nextDurations[index] = event.target.value;
+                                                            setQuickEditDraft({ ...quickEditDraft, phaseDurationsSec: nextDurations });
+                                                        }}
+                                                    />
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <label className="block rounded-xl border border-neutral-800 bg-neutral-900/70 p-3">
                                     <div className="mb-2 flex items-center justify-between gap-2">
                                         <span className="text-[10px] font-black uppercase text-neutral-500">Celkový počet kôl setu</span>
@@ -1209,6 +1373,17 @@ export default function LiveWorkout() {
                     </div>
                 )}
 
+                {isPhaseExercise && (
+                    <div className={clsx(
+                        "mb-4 px-4 py-2 rounded-full text-sm font-black uppercase tracking-wider border",
+                        phaseStep === 'PHASE'
+                            ? 'bg-cyan-400/10 text-cyan-300 border-cyan-400/20'
+                            : 'bg-yellow-400/10 text-yellow-300 border-yellow-400/20'
+                    )}>
+                        {phaseStep === 'PHASE' ? `Fáza ${phaseIndex + 1} / ${phaseDurations.length}` : 'Pauza'} · opakovanie {phaseRepIndex} / {currentItem.target}
+                    </div>
+                )}
+
                 {/* Visual Target */}
                 <div className="text-8xl md:text-9xl font-mono font-bold mb-8 tabular-nums">
                     {isTimer ? (
@@ -1231,6 +1406,23 @@ export default function LiveWorkout() {
                                 {currentItem.target}
                             </span>
                         </span>
+                    ) : isPhaseExercise ? (
+                        phaseStep === 'PHASE' ? (
+                            <span>
+                                <span className={progress >= phaseTarget ? "text-green-500" : "text-white"}>
+                                    {Math.min(progress, phaseTarget)}
+                                </span>
+                                <span className="text-4xl text-neutral-600 mx-2">/</span>
+                                <span className="text-6xl text-neutral-500">
+                                    {phaseTarget}
+                                </span>
+                            </span>
+                        ) : (
+                            <span>
+                                {phaseRemaining}
+                                <span className="text-2xl ml-2 text-neutral-500">s</span>
+                            </span>
+                        )
                     ) : (
                         <span>
                             {/* Counter Mode: Show Current / Target */}
@@ -1245,7 +1437,7 @@ export default function LiveWorkout() {
                     )}
                 </div>
 
-                {isHeldReps || isMetronome ? (
+                {isHeldReps || isMetronome || isPhaseExercise ? (
                     <div className="max-w-md space-y-2">
                         {exerciseDescription && (
                             <div className="text-neutral-300 text-lg">
@@ -1253,7 +1445,7 @@ export default function LiveWorkout() {
                             </div>
                         )}
                         <div className="text-neutral-400 text-base">
-                            {isMetronome ? metronomeInstructions : heldExerciseInstructions}
+                            {isMetronome ? metronomeInstructions : isPhaseExercise ? phaseInstructions : heldExerciseInstructions}
                         </div>
                     </div>
                 ) : (

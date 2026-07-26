@@ -43,6 +43,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
 };
 
 const isNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+const isPositiveNumberArray = (value: unknown): value is number[] => {
+    return Array.isArray(value) && value.every((item) => isNumber(item) && item >= 1);
+};
 
 const requireString = (value: unknown, field: string): string => {
     if (typeof value !== 'string') throw new Error(`Neplatný export: chýba ${field}`);
@@ -68,7 +71,7 @@ const parseItem = (value: unknown): SetItem => {
     if (!isRecord(value)) throw new Error('Neplatný export: položka setu má zlý formát');
 
     const typ = requireString(value.typ, 'typ cviku');
-    if (typ !== 'POCTOVY' && typ !== 'CASOVY' && typ !== 'DRZANE_OPAKOVANIA' && typ !== 'METRONOM') {
+    if (typ !== 'POCTOVY' && typ !== 'CASOVY' && typ !== 'DRZANE_OPAKOVANIA' && typ !== 'METRONOM' && typ !== 'FAZOVE') {
         throw new Error(`Neplatný export: neznámy typ cviku ${typ}`);
     }
 
@@ -84,6 +87,7 @@ const parseItem = (value: unknown): SetItem => {
     if (isNumber(value.restBetweenRepsSec)) item.restBetweenRepsSec = value.restBetweenRepsSec;
     if (isNumber(value.restAfterSec)) item.restAfterSec = value.restAfterSec;
     if (isNumber(value.metronomeSec)) item.metronomeSec = value.metronomeSec;
+    if (isPositiveNumberArray(value.phaseDurationsSec)) item.phaseDurationsSec = value.phaseDurationsSec;
 
     return item;
 };
